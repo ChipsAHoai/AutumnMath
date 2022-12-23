@@ -42,12 +42,13 @@ def problem():
 	global y
 	global solution
 
-	symbol=random.randint(1,2)
-	if symbol == 1:
+	operator = ['+','-']
+	symbol=random.choice(operator)
+	if symbol == '-':
 		x = random.randint(1,20)
 		y = random.randint(1,x)
 		solution = x - y
-	else:
+	if symbol=='+':
 		x = random.randint(1,99)
 		y = random.randint(1,x)
 		solution = x + y
@@ -58,13 +59,15 @@ def problem():
 	for i in range(3-len(y)):
 		y = " " + y
 	print(x)
-	if symbol==1:
-		print('-',y)
-	else:
-		print('+',y)
+	if symbol=='-':
+		print(symbol,y)
+	if symbol=='+':
+		print(symbol,y)
 	print("_____")
-
-	answer = input("=  ")
+	answer_input="="
+	for i in range(4-len(str(solution))):
+		answer_input=answer_input+" "
+	answer = input(answer_input)
 	try:
 		answer = int(answer)
 	except:
