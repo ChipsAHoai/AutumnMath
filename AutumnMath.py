@@ -24,7 +24,7 @@ def main():
 			print( x, " - ", y, " = ", solution)
 		if math == '+':
 			print( x, " + ", y, " = ", solution)
-		if z == 20:
+		if z == 19:
 			print("Great job Autumn Peacción!  You've finished in:")
 			total = round((time.time()-start),2)
 			total = str(total) + ' seconds'
