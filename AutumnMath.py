@@ -12,7 +12,7 @@ def main():
 	wrong = 0
 	os.system('clear')
 	start = time.time()
-	for z in range(1,21):
+	for z in range(0,20):
 		
 		solution=0
 		#os.system('clear')
