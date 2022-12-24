@@ -20,9 +20,9 @@ def main():
 		#clear()
 		os.system('clear')
 		print(z+1, ' out of ', 20)
-		if math == 1:
+		if math == '-':
 			print( x, " - ", y, " = ", solution)
-		else:
+		if math == '+':
 			print( x, " + ", y, " = ", solution)
 		if z == 20:
 			print("Great job Autumn Peacción!  You've finished in:")
