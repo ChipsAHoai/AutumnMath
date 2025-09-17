@@ -3,6 +3,7 @@ import os
 import time
 from art import *
 from fractions import Fraction
+import matplotlib.pyplot as plt
 
 def main():
     global wrong
@@ -39,9 +40,11 @@ def main():
             print("Parentheses master! Great job!")
         elif math == 'fraction':
             print("Fractions? Nailed it! Excellent work!")
+        elif math == 'slope':
+            print("You climbed the slope like a champ!")
 
         if z == (totalProblems - 1):
-            print("Great job Autumn Peacción! You've finished in:")
+            print("Great job Autumn ! You've finished in:")
             total = round((time.time() - start), 2)
             total = str(total) + ' seconds'
             tprint(total)
@@ -57,8 +60,8 @@ def problem():
     current_alg_format = ""
     a = b = c = d = 0
 
-    operator = ["%", "x", "alg", "mix", "multi_alg", "parens", "fraction"]
-    operator = ["fraction"]
+    operator = ["alg", "mix", "multi_alg", "parens", "fraction", "slope"]
+    # operator = ["slope"]
     symbol = random.choice(operator)
 
     if symbol == '-':
@@ -189,32 +192,80 @@ def problem():
 
         print(last_parens_problem)
 
+    elif symbol == "slope":
+        x1 = random.randint(-50, 50)
+        y1 = random.randint(-50, 50)
+        x2 = random.randint(-50, 50)
+        y2 = random.randint(-50, 50)
+
+        while x2 == x1:
+            x2 = random.randint(-50, 50)
+
+        delta_y = y2 - y1
+        delta_x = x2 - x1
+        solution = Fraction(delta_y, delta_x)
+
+        print(f"What is the slope of the line passing through the points ({x1}, {y1}) and ({x2}, {y2})?")
+        print("Provide your answer as a simplified fraction like '3/2' or '-1/4'")
+
+        plt.figure(figsize=(8, 8))
+        ax = plt.gca()
+        ax.axhline(0, color='gray', linewidth=0.8)
+        ax.axvline(0, color='gray', linewidth=0.8)
+        ax.grid(True, linestyle='--', linewidth=0.5)
+        ax.plot([x1, x2], [y1, y2], color='crimson', linewidth=2)
+        ax.scatter([x1, x2], [y1, y2], color='dodgerblue', zorder=5)
+
+        ax.text(x1, y1, f'({x1},{y1})', fontsize=9, ha='left', va='bottom', color='black')
+        ax.text(x2, y2, f'({x2},{y2})', fontsize=9, ha='left', va='bottom', color='black')
+
+        # Lock x-axis and y-axis to integers
+        x_min = min(x1, x2) - 3
+        x_max = max(x1, x2) + 3
+        y_min = min(y1, y2) - 3
+        y_max = max(y1, y2) + 3
+        ax.set_xlim(min(x1, x2) - 3, max(x1, x2) + 3)
+        ax.set_ylim(min(y1, y2) - 3, max(y1, y2) + 3)
+        ax.set_title('Slope Between Two Points')
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_aspect('equal', adjustable='box')
+        plt.tight_layout()
+        plt.show(block=False)
+
+    answer = input("= ")
+
+    if symbol in ["fraction", "slope"]:
+        while True:
+            user_input_str = answer.strip()
+            try:
+                answer_fraction = Fraction(user_input_str)
+                if '/' in user_input_str:
+                    num_str, den_str = user_input_str.split('/')
+                    num = int(num_str.strip())
+                    den = int(den_str.strip())
+                    simplified = Fraction(num, den)
+                    if num != simplified.numerator or den != simplified.denominator:
+                        print("Please simplify your fraction answer.")
+                        wrong += 1
+                        answer = input("= ")
+                        continue
+                elif answer_fraction.denominator != 1:
+                    print("Please enter your answer as a fraction, like '3/2'.")
+                    wrong += 1
+                    answer = input("= ")
+                    continue
+                answer = answer_fraction
+                break
+            except:
+                print("Invalid fraction format. Try again with numerator/denominator.")
+                wrong += 1
+                answer = input("= ")
     else:
-        return symbol
-
-    if symbol not in ["alg", "mix", "multi_alg", "parens", "fraction"]:
-        x = str(x)
-        y = str(y)
-        for i in range(5 - len(x)):
-            x = " " + x 
-        for i in range(3 - len(y)):
-            y = " " + y
-        print(x)
-        print(symbol, y)
-        print("_____")
-
-    answer_input = "= "
-    for i in range(4 - len(str(solution))):
-        answer_input += " "
-    answer = input(answer_input)
-
-    try:
-        if symbol == "fraction":
-            answer = Fraction(answer.strip())
-        else:
+        try:
             answer = int(answer)
-    except:
-        answer = Fraction(0, 1) if symbol == "fraction" else 0
+        except:
+            answer = 0
 
     while True:
         correct = False
@@ -226,7 +277,7 @@ def problem():
                 correct = (a * answer - b == c)
             elif current_alg_format == "a+b*x=c":
                 correct = (a + b * answer == c)
-        elif symbol == "fraction":
+        elif symbol in ["fraction", "slope"]:
             correct = (answer == solution)
         else:
             correct = (answer == solution)
@@ -253,19 +304,46 @@ def problem():
             print(last_parens_problem)
         elif symbol == "fraction":
             print(f"{x} + {y} = ? (simplify if possible)")
+        elif symbol == "slope":
+            print(f"What is the slope of the line passing through the points ({x1}, {y1}) and ({x2}, {y2})?")
+            print("Provide your answer as a simplified fraction like '3/2' or '-1/4'")
         else:
             print(x)
             print(symbol, y)
             print("_____")
 
         answer = input("= ")
-        try:
-            if symbol == "fraction":
-                answer = Fraction(answer.strip())
-            else:
+        if symbol in ["fraction", "slope"]:
+            while True:
+                user_input_str = answer.strip()
+                try:
+                    answer_fraction = Fraction(user_input_str)
+                    if '/' in user_input_str:
+                        num_str, den_str = user_input_str.split('/')
+                        num = int(num_str.strip())
+                        den = int(den_str.strip())
+                        simplified = Fraction(num, den)
+                        if num != simplified.numerator or den != simplified.denominator:
+                            print("Please simplify your fraction answer.")
+                            wrong += 1
+                            answer = input("= ")
+                            continue
+                    elif answer_fraction.denominator != 1:
+                        print("Please enter your answer as a fraction, like '3/2'.")
+                        wrong += 1
+                        answer = input("= ")
+                        continue
+                    answer = answer_fraction
+                    break
+                except:
+                    print("Invalid fraction format. Try again with numerator/denominator.")
+                    wrong += 1
+                    answer = input("= ")
+        else:
+            try:
                 answer = int(answer)
-        except:
-            answer = Fraction(0, 1) if symbol == "fraction" else 0
+            except:
+                answer = 0
 
     return symbol
 

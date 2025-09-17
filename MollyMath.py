@@ -12,7 +12,7 @@ def main():
 	wrong = 0
 	os.system('clear')
 	start = time.time()
-	totalProblems = 30
+	totalProblems = 20
 
 	for z in range(0,totalProblems):
 		
@@ -45,15 +45,15 @@ def problem():
 	global solution
 
 	# operator = ['+','-', 'x']
-	operator = ['+']
+	operator = ['+', '-']
 
 	symbol=random.choice(operator)
 	if symbol == '-':
-		x = random.randint(1,100)
+		x = random.randint(1,99)
 		y = random.randint(1,x)
 		solution = x - y
 	if symbol=='+':
-		x = random.randint(1,9)
+		x = random.randint(1,55)
 		y = random.randint(1,9)
 		solution = x + y
 	if symbol=='x':
