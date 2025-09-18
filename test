@@ -1,0 +1,38 @@
+if(_strLVLTubeBarcode==_arrScannedBarcodes.GetAt(j-1)){
+   _arrLVLTubeLocated.SetAt(k-1, 1);
+   Trace(_strLVLTubeBarcode, "=",_arrScannedBarcodes.GetAt(j-1));
+   Trace(_index, "-", _strLVLTubeBarcode);  
+   if(_arrRawSampleVolume.GetAt(_index) > 0){
+      Trace("Raw Volume > 0:", _arrRawSampleVolume.GetAt(_index));
+      SeqAdd(_seqLVLSampleAspirationInitial, _strLVLTubeRack, _arrScannedBarcodePositions.GetAt(j-1));
+      SeqAdd(_seqLVLSampleDispenseInitial, _strDilutionIntermediate, _arrDestinationWell.GetAt(_index));
+      _arrLVLSampleInitialVolume.AddAsLast(_arrRawSampleVolume.GetAt(_index));
+      _flMixingVolume = (_arrRawSampleVolume.GetAt(_index) + _arrRawDiluentVolume.GetAt(_index))*0.7;
+      if(_flMixingVolume > 45){
+         _flMixingVolume=45;
+         }
+      _arrLVLSampleInitialMixing.AddAsLast(_flMixingVolume);
+      }
+   //Add Samples From Initial to Final Plate
+   if(_arrRawSampleVolume.GetAt(_index) == 0 && _arrSampleVolume.GetAt(_index) > 0){
+      Trace("Initial to Final:", _arrRawSampleVolume.GetAt(_index))
+      SeqAdd(_seqLVLSampleAspirationInitial, _strLVLTubeRack, _arrScannedBarcodePositions.GetAt(j-1));
+      SeqAdd(_seqLVLSampleDispenseInitial, _strDilutionFinal, _arrDestinationWell.GetAt(_index));
+      _arrLVLSampleInitialVolume.AddAsLast(_arrSampleVolume.GetAt(_index));
+      _flMixingVolume = (_arrSampleVolume.GetAt(_index) + _arrDiluentVolume.GetAt(_index))*0.7;
+      if(_flMixingVolume > 45){
+         _flMixingVolume=45;
+         }
+      _arrLVLSampleInitialMixing.AddAsLast(_flMixingVolume);
+      }
+   if(_arrRawSampleVolume.GetAt(_index) > 0){
+      SeqAdd(_seqLVLSampleAspirationFinal, _strDilutionIntermediate, _arrDestinationWell.GetAt(_index));
+      SeqAdd(_seqLVLSampleDispenseFinal, _strDilutionFinal, _arrDestinationWell.GetAt(_index));
+      _arrLVLSampleFinalVolume.AddAsLast(_arrSampleVolume.GetAt(_index));
+      _flMixingVolume = (_arrSampleVolume.GetAt(_index) + _arrDiluentVolume.GetAt(_index))*0.7;
+      if(_flMixingVolume > 45){
+         _flMixingVolume=45;
+         }
+      _arrLVLSampleFinalMixing.AddAsLast(_flMixingVolume);
+      }
+   }

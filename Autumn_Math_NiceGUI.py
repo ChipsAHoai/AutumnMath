@@ -215,6 +215,10 @@ class MathQuizGame:
         with open(f"{self.name}_scores.txt", "a") as f:
             f.write(f"{time.ctime()}: Time {total_time}s, Wrong {self.wrong}\n")
 
+        # show Start Quiz button again so they can restart
+        self.start_button.visible = True
+        self.update_ui()
+
     def update_ui(self):
         self.progress_label.set_text(f"{self.current_index+1} out of {self.total_problems}")
         self.question_label.set_text(self.question)
