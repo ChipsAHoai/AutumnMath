@@ -236,10 +236,11 @@ def make_quiz_page(name: str, ops: list):
             with ui.column().classes("items-center"):
                 ui.label(f"Math Quiz for {name.capitalize()}").classes("text-3xl font-bold mb-6")
 
-                quiz.progress_label = ui.label("").classes("text-xl mb-2")
-                quiz.feedback_label = ui.label("").classes("text-xl mb-2")
-                quiz.question_label = ui.label("").classes("text-2xl mb-2")
-                quiz.answer_label = ui.label("").classes("text-2xl font-mono mb-4")
+                quiz.progress_label = ui.label("").classes("text-xl mb-2 h-8")
+                quiz.feedback_label = ui.label("").classes("text-xl mb-2 h-8")
+                quiz.question_label = ui.label("").classes("text-2xl mb-2 h-10")
+                quiz.answer_label = ui.label("").classes("text-2xl font-mono mb-4 h-10")
+
 
                 keypad_row = ui.column().classes("items-center gap-3")
                 with keypad_row:
@@ -275,5 +276,18 @@ def clear_input(quiz: MathQuizGame):
 # ---------- SETUP PAGES ----------
 autumn_quiz = make_quiz_page("autumn", ["+", "-", "x", "÷", "alg", "mix", "multi_alg", "parens", "fraction", "slope"])
 molly_quiz = make_quiz_page("molly", ["+", "-"])
+
+# ---------- ROOT PAGE ----------
+@ui.page('/')
+def index():
+    with ui.column().classes("items-center justify-center h-screen gap-6"):
+        ui.label("Welcome to Peaccion Math!").classes("text-3xl font-bold mb-8")
+        ui.button("Autumn's Quiz", on_click=lambda: ui.navigate.to('/autumn')).classes(
+            "bg-blue-500 text-white text-xl p-6 rounded-xl w-64"
+        )
+        ui.button("Molly's Quiz", on_click=lambda: ui.navigate.to('/molly')).classes(
+            "bg-green-500 text-white text-xl p-6 rounded-xl w-64"
+        )
+
 
 ui.run()
