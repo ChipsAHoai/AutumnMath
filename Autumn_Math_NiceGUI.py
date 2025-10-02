@@ -295,8 +295,9 @@ def clear_input(quiz: MathQuizGame):
 
 
 # ---------- SETUP PAGES ----------
-# autumn_quiz = make_quiz_page(15, "autumn", ["alg", "mix", "multi_alg", "parens", "fraction", "slope"])
-autumn_quiz = make_quiz_page(15, "autumn", ["slope"])
+autumn_quiz = make_quiz_page(
+    15, "autumn", ["alg", "mix", "multi_alg", "parens", "fraction", "slope"])
+# autumn_quiz = make_quiz_page(15, "autumn", ["slope"])
 molly_quiz = make_quiz_page(20, "molly", ["+", "-"])
 
 # ---------- ROOT PAGE ----------
