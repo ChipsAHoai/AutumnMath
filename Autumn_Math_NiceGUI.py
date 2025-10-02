@@ -88,21 +88,21 @@ class MathQuizGame:
 
             if self.algebra_format == "a*x+b=c":
                 self.a, x_val, self.b = random.randint(
-                    1, 12), random.randint(1, 10), random.randint(1, 20)
+                    1, 20), random.randint(1, 20), random.randint(1, 20)
                 self.c = self.a * x_val + self.b
                 self.solution = x_val
                 self.question = f"{self.a} * __ + {self.b} = {self.c}"
 
             elif self.algebra_format == "a*x-b=c":
                 self.a, x_val, self.b = random.randint(
-                    1, 12), random.randint(1, 10), random.randint(1, 20)
+                    1, 20), random.randint(1, 20), random.randint(1, 20)
                 self.c = self.a * x_val - self.b
                 self.solution = x_val
                 self.question = f"{self.a} * __ - {self.b} = {self.c}"
 
             elif self.algebra_format == "a+b*x=c":
                 self.b, x_val, self.a = random.randint(
-                    1, 12), random.randint(1, 10), random.randint(1, 20)
+                    1, 20), random.randint(1, 20), random.randint(1, 20)
                 self.c = self.a + self.b * x_val
                 self.solution = x_val
                 self.question = f"{self.a} + {self.b} * __ = {self.c}"
@@ -112,17 +112,17 @@ class MathQuizGame:
         # ---- Mixed expression ----
         elif self.symbol == "mix":
             self.a, self.b, self.c = random.randint(
-                1, 20), random.randint(1, 20), random.randint(1, 10)
+                1, 20), random.randint(1, 20), random.randint(1, 20)
             self.solution = (self.a + self.b) * self.c
             self.question = f"({self.a} + {self.b}) * {self.c} = ?"
             self.clear_plot()
 
         # ---- Multi-step algebra ----
         elif self.symbol == "multi_alg":
-            x_val = random.randint(1, 10)
-            self.a = random.randint(1, 5)
+            x_val = random.randint(1, 20)
+            self.a = random.randint(1, 20)
             self.c = random.randint(self.a + 1, self.a + 4)
-            self.b = random.randint(0, 10)
+            self.b = random.randint(0, 20)
             left = self.a * x_val + self.b
             right = self.c * x_val
             self.d = right - left
@@ -137,12 +137,12 @@ class MathQuizGame:
             chosen = random.choice(formats)
             if chosen == "(a + b) * c":
                 self.a, self.b, self.c = random.randint(
-                    1, 10), random.randint(1, 10), random.randint(1, 10)
+                    1, 20), random.randint(1, 20), random.randint(1, 20)
                 self.solution = (self.a + self.b) * self.c
                 self.question = f"({self.a} + {self.b}) * {self.c} = ?"
             elif chosen == "a * (b - c)":
                 self.b, self.c, self.a = random.randint(
-                    5, 15), random.randint(1, 5), random.randint(1, 10)
+                    5, 20), random.randint(1, 20), random.randint(1, 20)
                 self.solution = self.a * (self.b - self.c)
                 self.question = f"{self.a} * ({self.b} - {self.c}) = ?"
             elif chosen == "(a + b) + (c + d)":
@@ -151,8 +151,8 @@ class MathQuizGame:
                 self.solution = (self.a + self.b) + (self.c + self.d)
                 self.question = f"({self.a} + {self.b}) + ({self.c} + {self.d}) = ?"
             elif chosen == "(a * b) - (c * d)":
-                self.a, self.b, self.c, self.d = random.randint(1, 10), random.randint(
-                    1, 5), random.randint(1, 4), random.randint(1, 3)
+                self.a, self.b, self.c, self.d = random.randint(1, 20), random.randint(
+                    1, 2), random.randint(1, 2), random.randint(1, 20)
                 self.solution = (self.a * self.b) - (self.c * self.d)
                 self.question = f"({self.a} * {self.b}) - ({self.c} * {self.d}) = ?"
             self.clear_plot()
