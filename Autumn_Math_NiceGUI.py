@@ -193,6 +193,7 @@ class MathQuizGame:
             return
 
         if correct:
+            ui.notify(f"Great Job {str.capitalize(self.name)} Peacción!", type='positive')
             self.feedback = "✅ Correct!"
             self.current_index += 1
             self.input_text = ""
@@ -201,6 +202,7 @@ class MathQuizGame:
             else:
                 self.end_game()
         else:
+            ui.notify(f"Try Again {str.capitalize(self.name)} Peacción!", type='negative')
             self.feedback = "❌ Try again!"
             self.wrong += 1
             self.input_text = ""
@@ -215,20 +217,21 @@ class MathQuizGame:
         with open(f"{self.name}_scores.txt", "a") as f:
             f.write(f"{time.ctime()}: Time {total_time}s, Wrong {self.wrong}\n")
 
-        # show Start Quiz button again so they can restart
+        # Make the Start button visible again
         self.start_button.visible = True
-        self.update_ui()
+        self.start_button.update()  # refresh the UI to show it
+
 
     def update_ui(self):
-        self.progress_label.set_text(f"{self.current_index+1} out of {self.total_problems}")
+        self.progress_label.set_text(f"{self.current_index} out of {self.total_problems}")
         self.question_label.set_text(self.question)
         self.feedback_label.set_text(self.feedback)
         self.answer_label.set_text(self.input_text)
 
 
 # ---------- PAGE FACTORY ----------
-def make_quiz_page(name: str, ops: list):
-    quiz = MathQuizGame(allowed_ops=ops, name=name)
+def make_quiz_page(total_problems: int, name: str, ops: list):
+    quiz = MathQuizGame(total_problems=total_problems,allowed_ops=ops, name=name)
 
     @ui.page(f'/{name}')
     def page():
@@ -236,11 +239,10 @@ def make_quiz_page(name: str, ops: list):
             with ui.column().classes("items-center"):
                 ui.label(f"Math Quiz for {name.capitalize()}").classes("text-3xl font-bold mb-6")
 
-                quiz.progress_label = ui.label("").classes("text-xl mb-2 h-8")
-                quiz.feedback_label = ui.label("").classes("text-xl mb-2 h-8")
-                quiz.question_label = ui.label("").classes("text-2xl mb-2 h-10")
-                quiz.answer_label = ui.label("").classes("text-2xl font-mono mb-4 h-10")
-
+                quiz.progress_label = ui.label("").classes("text-xl mb-2")
+                quiz.feedback_label = ui.label("").classes("text-xl mb-2")
+                quiz.question_label = ui.label("").classes("text-2xl mb-2")
+                quiz.answer_label = ui.label("").classes("text-2xl font-mono mb-4")
 
                 keypad_row = ui.column().classes("items-center gap-3")
                 with keypad_row:
@@ -274,8 +276,8 @@ def clear_input(quiz: MathQuizGame):
 
 
 # ---------- SETUP PAGES ----------
-autumn_quiz = make_quiz_page("autumn", ["+", "-", "x", "÷", "alg", "mix", "multi_alg", "parens", "fraction", "slope"])
-molly_quiz = make_quiz_page("molly", ["+", "-"])
+autumn_quiz = make_quiz_page(15, "autumn", ["alg", "mix", "multi_alg", "parens", "fraction", "slope"])
+molly_quiz = make_quiz_page(20, "molly", ["+", "-"])
 
 # ---------- ROOT PAGE ----------
 @ui.page('/')
