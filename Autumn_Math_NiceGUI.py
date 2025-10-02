@@ -268,38 +268,44 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
 
     @ui.page(f'/{name}')
     def page():
-        with ui.row().classes("items-start justify-center w-full h-screen p-6 gap-12"):
-            with ui.column().classes("items-center"):
+        with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12"):
+            with ui.column().classes("items-start"):
                 ui.label(f"Math Quiz for {name.capitalize()}").classes(
-                    "text-3xl font-bold mb-6")
+                    "text-3xl font-bold mb-6"
+                )
 
                 quiz.progress_label = ui.label("").classes("text-xl mb-2")
                 quiz.feedback_label = ui.label("").classes("text-xl mb-2")
                 quiz.question_label = ui.label("").classes("text-2xl mb-2")
                 quiz.answer_label = ui.label("").classes(
                     "text-2xl font-mono mb-4 h-8"
-                )
+                )  # fixed height reserved
 
-                keypad_row = ui.column().classes("items-center gap-3")
+                keypad_row = ui.column().classes("items-start gap-3")
                 with keypad_row:
                     for row in [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["0", "/", "-"], ["C", "Enter"]]:
                         with ui.row().classes("gap-3"):
                             for key in row:
                                 if key == "C":
                                     ui.button("Clear", on_click=lambda q=quiz: clear_input(q)).classes(
-                                        "bg-red-500 text-white text-lg p-3 rounded-xl w-24")
+                                        "bg-red-500 text-white text-lg p-3 rounded-xl w-24"
+                                    )
                                 elif key == "Enter":
                                     ui.button("Enter", on_click=lambda q=quiz: q.check_answer()).classes(
-                                        "bg-green-500 text-white text-lg p-3 rounded-xl w-80")
+                                        "bg-green-500 text-white text-lg p-3 rounded-xl w-80"
+                                    )
                                 else:
                                     ui.button(key, on_click=lambda _, k=key, q=quiz: add_char(q, k)).classes(
-                                        "bg-blue-500 text-white text-lg p-3 rounded-xl w-24")
+                                        "bg-blue-500 text-white text-lg p-3 rounded-xl w-24"
+                                    )
 
-                quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start(
-                )).classes("bg-green-600 text-white text-lg p-3 rounded-xl mt-6")
+                quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start()).classes(
+                    "bg-green-600 text-white text-lg p-3 rounded-xl mt-6"
+                )
 
-            with ui.column().classes("items-center justify-center"):
+            with ui.column().classes("items-start justify-start"):
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
+
 
     return quiz
 
