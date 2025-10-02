@@ -277,7 +277,8 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                 quiz.feedback_label = ui.label("").classes("text-xl mb-2")
                 quiz.question_label = ui.label("").classes("text-2xl mb-2")
                 quiz.answer_label = ui.label("").classes(
-                    "text-2xl font-mono mb-4")
+                    "text-2xl font-mono mb-4 h-8"
+                )
 
                 keypad_row = ui.column().classes("items-center gap-3")
                 with keypad_row:
