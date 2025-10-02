@@ -1,3 +1,4 @@
+import os
 import random
 import time
 from fractions import Fraction
@@ -31,13 +32,22 @@ class MathQuizGame:
         self.a = self.b = self.c = self.d = 0
         self.f1 = self.f2 = None
 
+        # UI elements (initialized later in make_quiz_page)
+        self.start_button = None
+        self.progress_label = None
+        self.question_label = None
+        self.feedback_label = None
+        self.answer_label = None
+
     def start(self):
         self.current_index = 0
         self.wrong = 0
         self.start_time = time.time()
         self.generate_problem()
         self.update_ui()
-        self.start_button.visible = False
+        if self.start_button:
+            self.start_button.visible = False
+            self.start_button.update()
 
     def generate_problem(self):
         self.symbol = random.choice(self.allowed_ops)
@@ -167,31 +177,35 @@ class MathQuizGame:
             self.solution = Fraction(delta_y, delta_x)
             self.question = f"Slope through ({x1},{y1}) and ({x2},{y2}) = ? (fraction)"
 
-            if not self.plot:
-                self.plot = ui.pyplot().classes("w-[500px] h-[400px]")
-            with self.plot:
-                plt.clf()
-                plt.axhline(0, color='gray', linewidth=0.8)
-                plt.axvline(0, color='gray', linewidth=0.8)
-                plt.grid(True, linestyle='--', linewidth=0.5)
-                plt.plot([x1, x2], [y1, y2], color='crimson', linewidth=2)
-                plt.scatter([x1, x2], [y1, y2], color='dodgerblue', zorder=5)
-                plt.text(x1, y1, f'({x1},{y1})', fontsize=9)
-                plt.text(x2, y2, f'({x2},{y2})', fontsize=9)
-                plt.title("Slope Between Two Points")
-                plt.tight_layout()
-            self.plot.update()
+            if self.plot:
+                with self.plot:
+                    plt.clf()
+                    plt.axhline(0, color='gray', linewidth=0.8)
+                    plt.axvline(0, color='gray', linewidth=0.8)
+                    plt.grid(True, linestyle='--', linewidth=0.5)
+                    plt.plot([x1, x2], [y1, y2], color='crimson', linewidth=2)
+                    plt.scatter([x1, x2], [y1, y2], color='dodgerblue', zorder=5)
+                    plt.text(x1, y1, f'({x1},{y1})', fontsize=9)
+                    plt.text(x2, y2, f'({x2},{y2})', fontsize=9)
+                    plt.title("Slope Between Two Points")
+                    plt.tight_layout()
+                self.plot.update()
 
     def clear_plot(self):
         if self.plot:
-            self.plot.clear()
+            with self.plot:
+                plt.clf()
+            self.plot.update()
 
     def check_answer(self):
         user_input = self.input_text.strip()
         correct = False
         try:
             if self.symbol in ["fraction", "slope"]:
-                answer = Fraction(user_input)
+                try:
+                    answer = Fraction(user_input)
+                except ValueError:
+                    answer = Fraction(float(user_input))
                 correct = (answer == self.solution)
             else:
                 answer = int(user_input)
@@ -203,17 +217,14 @@ class MathQuizGame:
             return
 
         if correct:
-
             ui.notify(
                 f"Great Job {str.capitalize(self.name)} Peacción!", type='positive')
             self.feedback = "✅ Correct!"
             self.current_index += 1
             self.input_text = ""
             if self.current_index < self.total_problems:
-                self.clear_plot()
                 self.generate_problem()
             else:
-                self.clear_plot()
                 self.end_game()
         else:
             ui.notify(
@@ -229,19 +240,25 @@ class MathQuizGame:
         self.question = f"🎉 Finished! Time: {total_time}s, Wrong: {self.wrong}"
         self.feedback = ""
         self.clear_plot()
-        with open(f"{self.name}_scores.txt", "a") as f:
+
+        os.makedirs("scores", exist_ok=True)
+        with open(os.path.join("scores", f"{self.name}_scores.txt"), "a") as f:
             f.write(f"{time.ctime()}: Time {total_time}s, Wrong {self.wrong}\n")
 
-        # Make the Start button visible again
-        self.start_button.visible = True
-        self.start_button.update()  # refresh the UI to show it
+        if self.start_button:
+            self.start_button.visible = True
+            self.start_button.update()
 
     def update_ui(self):
-        self.progress_label.set_text(
-            f"{self.current_index} out of {self.total_problems}")
-        self.question_label.set_text(self.question)
-        self.feedback_label.set_text(self.feedback)
-        self.answer_label.set_text(self.input_text)
+        if self.progress_label:
+            self.progress_label.set_text(
+                f"{self.current_index} out of {self.total_problems}")
+        if self.question_label:
+            self.question_label.set_text(self.question)
+        if self.feedback_label:
+            self.feedback_label.set_text(self.feedback)
+        if self.answer_label:
+            self.answer_label.set_text(self.input_text)
 
 
 # ---------- PAGE FACTORY ----------
@@ -289,23 +306,23 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
 # keypad helpers
 def add_char(quiz: MathQuizGame, ch: str):
     quiz.input_text += ch
-    quiz.answer_label.set_text(quiz.input_text)
+    if quiz.answer_label:
+        quiz.answer_label.set_text(quiz.input_text)
 
 
 def clear_input(quiz: MathQuizGame):
     quiz.input_text = ""
-    quiz.answer_label.set_text("")
+    if quiz.answer_label:
+        quiz.answer_label.set_text("")
 
 
 # ---------- SETUP PAGES ----------
 autumn_quiz = make_quiz_page(
     15, "autumn", ["multi_alg", "fraction", "slope"])
-# autumn_quiz = make_quiz_page(15, "autumn", ["slope"])
 molly_quiz = make_quiz_page(20, "molly", ["+", "-"])
 
+
 # ---------- ROOT PAGE ----------
-
-
 @ui.page('/')
 def index():
     with ui.column().classes("items-center justify-center h-screen gap-6"):
