@@ -1,6 +1,7 @@
 import random
 import time
 from fractions import Fraction
+
 import matplotlib.pyplot as plt
 from nicegui import ui
 
@@ -86,19 +87,22 @@ class MathQuizGame:
             self.algebra_format = random.choice(formats)
 
             if self.algebra_format == "a*x+b=c":
-                self.a, x_val, self.b = random.randint(1, 12), random.randint(1, 10), random.randint(1, 20)
+                self.a, x_val, self.b = random.randint(
+                    1, 12), random.randint(1, 10), random.randint(1, 20)
                 self.c = self.a * x_val + self.b
                 self.solution = x_val
                 self.question = f"{self.a} * __ + {self.b} = {self.c}"
 
             elif self.algebra_format == "a*x-b=c":
-                self.a, x_val, self.b = random.randint(1, 12), random.randint(1, 10), random.randint(1, 20)
+                self.a, x_val, self.b = random.randint(
+                    1, 12), random.randint(1, 10), random.randint(1, 20)
                 self.c = self.a * x_val - self.b
                 self.solution = x_val
                 self.question = f"{self.a} * __ - {self.b} = {self.c}"
 
             elif self.algebra_format == "a+b*x=c":
-                self.b, x_val, self.a = random.randint(1, 12), random.randint(1, 10), random.randint(1, 20)
+                self.b, x_val, self.a = random.randint(
+                    1, 12), random.randint(1, 10), random.randint(1, 20)
                 self.c = self.a + self.b * x_val
                 self.solution = x_val
                 self.question = f"{self.a} + {self.b} * __ = {self.c}"
@@ -107,7 +111,8 @@ class MathQuizGame:
 
         # ---- Mixed expression ----
         elif self.symbol == "mix":
-            self.a, self.b, self.c = random.randint(1, 20), random.randint(1, 20), random.randint(1, 10)
+            self.a, self.b, self.c = random.randint(
+                1, 20), random.randint(1, 20), random.randint(1, 10)
             self.solution = (self.a + self.b) * self.c
             self.question = f"({self.a} + {self.b}) * {self.c} = ?"
             self.clear_plot()
@@ -127,22 +132,27 @@ class MathQuizGame:
 
         # ---- Parentheses ----
         elif self.symbol == "parens":
-            formats = ["(a + b) * c", "a * (b - c)", "(a + b) + (c + d)", "(a * b) - (c * d)"]
+            formats = ["(a + b) * c", "a * (b - c)",
+                       "(a + b) + (c + d)", "(a * b) - (c * d)"]
             chosen = random.choice(formats)
             if chosen == "(a + b) * c":
-                self.a, self.b, self.c = random.randint(1, 10), random.randint(1, 10), random.randint(1, 10)
+                self.a, self.b, self.c = random.randint(
+                    1, 10), random.randint(1, 10), random.randint(1, 10)
                 self.solution = (self.a + self.b) * self.c
                 self.question = f"({self.a} + {self.b}) * {self.c} = ?"
             elif chosen == "a * (b - c)":
-                self.b, self.c, self.a = random.randint(5, 15), random.randint(1, 5), random.randint(1, 10)
+                self.b, self.c, self.a = random.randint(
+                    5, 15), random.randint(1, 5), random.randint(1, 10)
                 self.solution = self.a * (self.b - self.c)
                 self.question = f"{self.a} * ({self.b} - {self.c}) = ?"
             elif chosen == "(a + b) + (c + d)":
-                self.a, self.b, self.c, self.d = [random.randint(1, 10) for _ in range(4)]
+                self.a, self.b, self.c, self.d = [
+                    random.randint(1, 10) for _ in range(4)]
                 self.solution = (self.a + self.b) + (self.c + self.d)
                 self.question = f"({self.a} + {self.b}) + ({self.c} + {self.d}) = ?"
             elif chosen == "(a * b) - (c * d)":
-                self.a, self.b, self.c, self.d = random.randint(1, 10), random.randint(1, 5), random.randint(1, 4), random.randint(1, 3)
+                self.a, self.b, self.c, self.d = random.randint(1, 10), random.randint(
+                    1, 5), random.randint(1, 4), random.randint(1, 3)
                 self.solution = (self.a * self.b) - (self.c * self.d)
                 self.question = f"({self.a} * {self.b}) - ({self.c} * {self.d}) = ?"
             self.clear_plot()
@@ -193,7 +203,8 @@ class MathQuizGame:
             return
 
         if correct:
-            ui.notify(f"Great Job {str.capitalize(self.name)} Peacción!", type='positive')
+            ui.notify(
+                f"Great Job {str.capitalize(self.name)} Peacción!", type='positive')
             self.feedback = "✅ Correct!"
             self.current_index += 1
             self.input_text = ""
@@ -202,7 +213,8 @@ class MathQuizGame:
             else:
                 self.end_game()
         else:
-            ui.notify(f"Try Again {str.capitalize(self.name)} Peacción!", type='negative')
+            ui.notify(
+                f"Try Again {str.capitalize(self.name)} Peacción!", type='negative')
             self.feedback = "❌ Try again!"
             self.wrong += 1
             self.input_text = ""
@@ -221,9 +233,9 @@ class MathQuizGame:
         self.start_button.visible = True
         self.start_button.update()  # refresh the UI to show it
 
-
     def update_ui(self):
-        self.progress_label.set_text(f"{self.current_index} out of {self.total_problems}")
+        self.progress_label.set_text(
+            f"{self.current_index} out of {self.total_problems}")
         self.question_label.set_text(self.question)
         self.feedback_label.set_text(self.feedback)
         self.answer_label.set_text(self.input_text)
@@ -231,18 +243,21 @@ class MathQuizGame:
 
 # ---------- PAGE FACTORY ----------
 def make_quiz_page(total_problems: int, name: str, ops: list):
-    quiz = MathQuizGame(total_problems=total_problems,allowed_ops=ops, name=name)
+    quiz = MathQuizGame(total_problems=total_problems,
+                        allowed_ops=ops, name=name)
 
     @ui.page(f'/{name}')
     def page():
         with ui.row().classes("items-start justify-center w-full h-screen p-6 gap-12"):
             with ui.column().classes("items-center"):
-                ui.label(f"Math Quiz for {name.capitalize()}").classes("text-3xl font-bold mb-6")
+                ui.label(f"Math Quiz for {name.capitalize()}").classes(
+                    "text-3xl font-bold mb-6")
 
                 quiz.progress_label = ui.label("").classes("text-xl mb-2")
                 quiz.feedback_label = ui.label("").classes("text-xl mb-2")
                 quiz.question_label = ui.label("").classes("text-2xl mb-2")
-                quiz.answer_label = ui.label("").classes("text-2xl font-mono mb-4")
+                quiz.answer_label = ui.label("").classes(
+                    "text-2xl font-mono mb-4")
 
                 keypad_row = ui.column().classes("items-center gap-3")
                 with keypad_row:
@@ -250,13 +265,17 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                         with ui.row().classes("gap-3"):
                             for key in row:
                                 if key == "C":
-                                    ui.button("Clear", on_click=lambda q=quiz: clear_input(q)).classes("bg-red-500 text-white text-lg p-3 rounded-xl w-24")
+                                    ui.button("Clear", on_click=lambda q=quiz: clear_input(q)).classes(
+                                        "bg-red-500 text-white text-lg p-3 rounded-xl w-24")
                                 elif key == "Enter":
-                                    ui.button("Enter", on_click=lambda q=quiz: q.check_answer()).classes("bg-green-500 text-white text-lg p-3 rounded-xl w-80")
+                                    ui.button("Enter", on_click=lambda q=quiz: q.check_answer()).classes(
+                                        "bg-green-500 text-white text-lg p-3 rounded-xl w-80")
                                 else:
-                                    ui.button(key, on_click=lambda _, k=key, q=quiz: add_char(q, k)).classes("bg-blue-500 text-white text-lg p-3 rounded-xl w-24")
+                                    ui.button(key, on_click=lambda _, k=key, q=quiz: add_char(q, k)).classes(
+                                        "bg-blue-500 text-white text-lg p-3 rounded-xl w-24")
 
-                quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start()).classes("bg-green-600 text-white text-lg p-3 rounded-xl mt-6")
+                quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start(
+                )).classes("bg-green-600 text-white text-lg p-3 rounded-xl mt-6")
 
             with ui.column().classes("items-center justify-center"):
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
@@ -276,14 +295,18 @@ def clear_input(quiz: MathQuizGame):
 
 
 # ---------- SETUP PAGES ----------
-autumn_quiz = make_quiz_page(15, "autumn", ["alg", "mix", "multi_alg", "parens", "fraction", "slope"])
+# autumn_quiz = make_quiz_page(15, "autumn", ["alg", "mix", "multi_alg", "parens", "fraction", "slope"])
+autumn_quiz = make_quiz_page(15, "autumn", ["slope"])
 molly_quiz = make_quiz_page(20, "molly", ["+", "-"])
 
 # ---------- ROOT PAGE ----------
+
+
 @ui.page('/')
 def index():
     with ui.column().classes("items-center justify-center h-screen gap-6"):
-        ui.label("Welcome to Peaccion Math!").classes("text-3xl font-bold mb-8")
+        ui.label("Welcome to Peaccion Math!").classes(
+            "text-3xl font-bold mb-8")
         ui.button("Autumn's Quiz", on_click=lambda: ui.navigate.to('/autumn')).classes(
             "bg-blue-500 text-white text-xl p-6 rounded-xl w-64"
         )
