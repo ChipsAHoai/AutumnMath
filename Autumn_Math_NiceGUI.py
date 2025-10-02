@@ -203,14 +203,17 @@ class MathQuizGame:
             return
 
         if correct:
+
             ui.notify(
                 f"Great Job {str.capitalize(self.name)} Peacción!", type='positive')
             self.feedback = "✅ Correct!"
             self.current_index += 1
             self.input_text = ""
             if self.current_index < self.total_problems:
+                self.clear_plot()
                 self.generate_problem()
             else:
+                self.clear_plot()
                 self.end_game()
         else:
             ui.notify(
