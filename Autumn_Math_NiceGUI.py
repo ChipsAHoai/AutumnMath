@@ -84,8 +84,8 @@ class MathQuizGame:
 
         # ---- Fractions ----
         elif self.symbol == "fraction":
-            num1, den1 = random.randint(1, 9), random.randint(1, 9)
-            num2, den2 = random.randint(1, 9), random.randint(1, 9)
+            num1, den1 = random.randint(1, 20), random.randint(1, 20)
+            num2, den2 = random.randint(1, 20), random.randint(1, 20)
             self.f1, self.f2 = Fraction(num1, den1), Fraction(num2, den2)
             self.solution = self.f1 + self.f2
             self.question = f"{self.f1} + {self.f2} = ? (simplify if possible)"
@@ -292,7 +292,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                                     )
                                 elif key == "Enter":
                                     ui.button("Enter", on_click=lambda q=quiz: q.check_answer()).classes(
-                                        "bg-green-500 text-white text-lg p-3 rounded-xl w-80"
+                                        "bg-green-500 text-white text-lg p-3 rounded-xl w-48"
                                     )
                                 else:
                                     ui.button(key, on_click=lambda _, k=key, q=quiz: add_char(q, k)).classes(
