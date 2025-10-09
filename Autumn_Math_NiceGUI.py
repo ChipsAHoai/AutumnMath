@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from nicegui import ui, app
 
 
-
 # ---------- BASE QUIZ CLASS ----------
 class MathQuizGame:
     def __init__(self, total_problems=20, allowed_ops=None, name="player"):
@@ -41,15 +40,17 @@ class MathQuizGame:
         self.answer_label = None
 
     def start(self):
-        self.current_index = 0
-        self.wrong = 0
-        self.start_time = time.time()
-        self.generate_problem()
+        # Only reset if not continuing a restored quiz
+        if self.current_index == 0:
+            self.current_index = 0
+            self.wrong = 0
+            self.start_time = time.time()
+            self.generate_problem()
+
         self.update_ui()
         if self.start_button and self.start_button.visible:
             self.start_button.visible = False
             self.start_button.update()
-
 
     def generate_problem(self):
         self.symbol = random.choice(self.allowed_ops)
@@ -219,8 +220,7 @@ class MathQuizGame:
             return
 
         if correct:
-            ui.notify(
-                f"Great Job {str.capitalize(self.name)} Peacción!", type='positive')
+            ui.notify(f"Great Job {self.name.capitalize()}!", type='positive')
             self.feedback = "✅ Correct!"
             self.current_index += 1
             self.input_text = ""
@@ -229,25 +229,20 @@ class MathQuizGame:
             else:
                 self.end_game()
         else:
-            ui.notify(
-                f"Try Again {str.capitalize(self.name)} Peacción!", type='negative')
+            ui.notify(f"Try Again {self.name.capitalize()}!", type='negative')
             self.feedback = "❌ Try again!"
             self.wrong += 1
             self.input_text = ""
 
-        # --- save progress after every answer ---
-        try:
-            app.storage.browser[self.name] = {
-                "current_index": self.current_index,
-                "wrong": self.wrong,
-                "question": self.question,
-                "solution": str(self.solution),
-                "symbol": self.symbol,
-                "start_time": self.start_time,
-            }
-        except RuntimeError:
-            # storage might not be initialized yet
-            pass
+        # --- save progress ---
+        app.storage.user[self.name] = {
+            "current_index": self.current_index,
+            "wrong": self.wrong,
+            "question": self.question,
+            "solution": str(self.solution),
+            "symbol": self.symbol,
+            "start_time": self.start_time,
+        }
         self.update_ui()
 
     def end_game(self):
@@ -255,9 +250,7 @@ class MathQuizGame:
         self.question = f"🎉 Finished! Time: {total_time}s, Wrong: {self.wrong}"
         self.feedback = ""
         self.clear_plot()
-
-        # clear saved progress when finished
-        app.storage.browser.pop(self.name, None)
+        app.storage.user.pop(self.name, None)
 
         os.makedirs("scores", exist_ok=True)
         with open(os.path.join("scores", f"{self.name}_scores.txt"), "a") as f:
@@ -298,28 +291,34 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
     def page():
         quiz = MathQuizGame(total_problems=total_problems,
                             allowed_ops=ops, name=name)
-        
+
         # --- try to restore saved progress ---
-        try:
-            saved = app.storage.browser.get(name)
-        except RuntimeError:
-            saved = None
+        # placeholder until client connects
+        quiz.question = "Loading..."
+        quiz.update_ui()
 
-        if saved:
-            quiz.current_index = saved.get("current_index", 0)
-            quiz.wrong = saved.get("wrong", 0)
-            quiz.question = saved.get("question", "")
-            sol = saved.get("solution", "")
-            quiz.solution = Fraction(sol) if "/" in sol else int(sol) if sol.isdigit() else None
-            quiz.symbol = saved.get("symbol", "")
-            quiz.start_time = saved.get("start_time", time.time())
-            quiz.feedback = "⏪ Progress restored!"
+        def restore_progress():
+            try:
+                saved = app.storage.user.get(name)
+            except RuntimeError:
+                saved = None
 
-            # Ensure UI shows the saved question
-            quiz.update_ui()
-        else:
-            quiz.question = "Press ▶️ Start Quiz to begin"
-
+            if saved:
+                quiz.current_index = saved.get("current_index", 0)
+                quiz.wrong = saved.get("wrong", 0)
+                quiz.question = saved.get("question", "")
+                sol = saved.get("solution", "")
+                quiz.solution = Fraction(sol) if "/" in sol else int(sol) if sol.isdigit() else None
+                quiz.symbol = saved.get("symbol", "")
+                quiz.start_time = saved.get("start_time", time.time())
+                quiz.feedback = "⏪ Progress restored!"
+                quiz.update_ui()
+                if quiz.start_button:
+                    quiz.start_button.visible = False
+                    quiz.start_button.update()
+            else:
+                quiz.question = "Press ▶️ Start Quiz to begin"
+                quiz.update_ui()
 
         with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12"):
             with ui.column().classes("items-start"):
@@ -355,10 +354,11 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                 quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start()).classes(
                     "bg-green-600 text-white text-lg p-3 rounded-xl mt-6"
                 )
+                # hide start button if progress was restored
 
             with ui.column().classes("items-start justify-start"):
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
-
+        ui.timer(0.1, restore_progress, once=True)
     return page
 
 
