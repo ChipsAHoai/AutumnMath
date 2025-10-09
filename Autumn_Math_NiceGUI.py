@@ -203,6 +203,7 @@ class MathQuizGame:
     def check_answer(self):
         user_input = self.input_text.strip()
         correct = False
+
         try:
             if self.symbol in ["fraction", "slope"]:
                 try:
@@ -222,17 +223,27 @@ class MathQuizGame:
         if correct:
             ui.notify(f"Great Job {self.name.capitalize()}!", type='positive')
             self.feedback = "✅ Correct!"
-            self.current_index += 1
             self.input_text = ""
-            if self.current_index < self.total_problems:
-                self.generate_problem()
-            else:
-                self.end_game()
+            self.update_ui()          # immediate visual feedback
+
+            # small pause so user can see "Correct!" message before next problem
+            def next_problem():
+                self.current_index += 1
+                if self.current_index < self.total_problems:
+                    self.feedback = ""  # clear old feedback
+                    self.generate_problem()
+                else:
+                    self.end_game()
+                self.update_ui()
+
+            ui.timer(0.6, next_problem, once=True)  # wait 0.6s before next question
+
         else:
             ui.notify(f"Try Again {self.name.capitalize()}!", type='negative')
             self.feedback = "❌ Try again!"
             self.wrong += 1
             self.input_text = ""
+            self.update_ui()
 
         # --- save progress ---
         app.storage.user[self.name] = {
@@ -243,7 +254,6 @@ class MathQuizGame:
             "symbol": self.symbol,
             "start_time": self.start_time,
         }
-        self.update_ui()
 
     def end_game(self):
         total_time = round(time.time() - self.start_time, 2)
