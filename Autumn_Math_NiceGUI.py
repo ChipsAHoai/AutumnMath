@@ -4,7 +4,8 @@ import time
 from fractions import Fraction
 
 import matplotlib.pyplot as plt
-from nicegui import ui
+from nicegui import ui, app
+
 
 
 # ---------- BASE QUIZ CLASS ----------
@@ -45,9 +46,10 @@ class MathQuizGame:
         self.start_time = time.time()
         self.generate_problem()
         self.update_ui()
-        if self.start_button:
+        if self.start_button and self.start_button.visible:
             self.start_button.visible = False
             self.start_button.update()
+
 
     def generate_problem(self):
         self.symbol = random.choice(self.allowed_ops)
@@ -233,6 +235,19 @@ class MathQuizGame:
             self.wrong += 1
             self.input_text = ""
 
+        # --- save progress after every answer ---
+        try:
+            app.storage.browser[self.name] = {
+                "current_index": self.current_index,
+                "wrong": self.wrong,
+                "question": self.question,
+                "solution": str(self.solution),
+                "symbol": self.symbol,
+                "start_time": self.start_time,
+            }
+        except RuntimeError:
+            # storage might not be initialized yet
+            pass
         self.update_ui()
 
     def end_game(self):
@@ -240,6 +255,9 @@ class MathQuizGame:
         self.question = f"🎉 Finished! Time: {total_time}s, Wrong: {self.wrong}"
         self.feedback = ""
         self.clear_plot()
+
+        # clear saved progress when finished
+        app.storage.browser.pop(self.name, None)
 
         os.makedirs("scores", exist_ok=True)
         with open(os.path.join("scores", f"{self.name}_scores.txt"), "a") as f:
@@ -261,13 +279,48 @@ class MathQuizGame:
             self.answer_label.set_text(self.input_text)
 
 
+# keypad helpers
+def add_char(quiz: MathQuizGame, ch: str):
+    quiz.input_text += ch
+    if quiz.answer_label:
+        quiz.answer_label.set_text(quiz.input_text)
+
+
+def clear_input(quiz: MathQuizGame):
+    quiz.input_text = ""
+    if quiz.answer_label:
+        quiz.answer_label.set_text("")
+
+
 # ---------- PAGE FACTORY ----------
 def make_quiz_page(total_problems: int, name: str, ops: list):
-    quiz = MathQuizGame(total_problems=total_problems,
-                        allowed_ops=ops, name=name)
-
     @ui.page(f'/{name}')
     def page():
+        quiz = MathQuizGame(total_problems=total_problems,
+                            allowed_ops=ops, name=name)
+        
+        # --- try to restore saved progress ---
+        try:
+            saved = app.storage.browser.get(name)
+        except RuntimeError:
+            saved = None
+
+        if saved:
+            quiz.current_index = saved.get("current_index", 0)
+            quiz.wrong = saved.get("wrong", 0)
+            quiz.question = saved.get("question", "")
+            sol = saved.get("solution", "")
+            quiz.solution = Fraction(sol) if "/" in sol else int(sol) if sol.isdigit() else None
+            quiz.symbol = saved.get("symbol", "")
+            quiz.start_time = saved.get("start_time", time.time())
+            quiz.feedback = "⏪ Progress restored!"
+
+            # Ensure UI shows the saved question
+            quiz.update_ui()
+        else:
+            quiz.question = "Press ▶️ Start Quiz to begin"
+
+
         with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12"):
             with ui.column().classes("items-start"):
                 ui.label(f"Math Quiz for {name.capitalize()}").classes(
@@ -279,7 +332,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                 quiz.question_label = ui.label("").classes("text-2xl mb-2")
                 quiz.answer_label = ui.label("").classes(
                     "text-2xl font-mono mb-4 h-8"
-                )  # fixed height reserved
+                )
 
                 keypad_row = ui.column().classes("items-start gap-3")
                 with keypad_row:
@@ -306,27 +359,12 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
             with ui.column().classes("items-start justify-start"):
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
 
-
-    return quiz
-
-
-# keypad helpers
-def add_char(quiz: MathQuizGame, ch: str):
-    quiz.input_text += ch
-    if quiz.answer_label:
-        quiz.answer_label.set_text(quiz.input_text)
+    return page
 
 
-def clear_input(quiz: MathQuizGame):
-    quiz.input_text = ""
-    if quiz.answer_label:
-        quiz.answer_label.set_text("")
-
-
-# ---------- SETUP PAGES ----------
-autumn_quiz = make_quiz_page(
-    15, "autumn", ["multi_alg", "fraction", "slope"])
-molly_quiz = make_quiz_page(20, "molly", ["+", "-"])
+# ---------- REGISTER QUIZ PAGES ----------
+make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope"])
+make_quiz_page(20, "molly", ["+", "-"])
 
 
 # ---------- ROOT PAGE ----------
@@ -343,4 +381,4 @@ def index():
         )
 
 
-ui.run()
+ui.run(storage_secret='super-secret-key')
