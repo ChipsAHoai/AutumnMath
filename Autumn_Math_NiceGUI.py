@@ -334,7 +334,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                 )
 
                 keypad_row = ui.column().classes("items-start gap-3")
-                with keypad_row:
+                with keypad_row.classes("gap-3 scale-90"):
                     for row in [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["0", "/", "-"], ["C", "Enter"]]:
                         with ui.row().classes("gap-3"):
                             for key in row:
