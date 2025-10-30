@@ -170,6 +170,36 @@ class MathQuizGame:
                 self.question = f"({self.a} * {self.b}) - ({self.c} * {self.d}) = ?"
             self.clear_plot()
 
+        elif self.symbol == "decimal_multi_div":
+            # curated pools keep decimal variety while avoiding repeating results on division
+            multiplication_pool = [
+                "0.05", "0.7", "0.08", "1.25", "2.40", "0.64", "3.5",
+                "0.125", "2.05", "4.08", "0.500", "3.040", "5.020"
+            ]
+            divisor_pool = [
+                "0.05", "0.1", "0.125", "0.2", "0.25", "0.4", "0.5",
+                "0.8", "1.0", "1.25", "2.0", "2.5", "5.0"
+            ]
+
+            def pick_decimal(pool):
+                base = random.choice(pool)
+                if "." in base:
+                    decimals = base.split(".")[1]
+                    if len(decimals) < 3 and random.random() < 0.4:
+                        base = base + "0"
+                return base, Fraction(base)
+
+            op_symbol = random.choice(["×", "÷"])
+            left_text, left_value = pick_decimal(multiplication_pool)
+            if op_symbol == "×":
+                right_text, right_value = pick_decimal(multiplication_pool)
+                self.solution = left_value * right_value
+            else:
+                right_text, right_value = pick_decimal(divisor_pool)
+                self.solution = left_value / right_value
+            self.question = f"{left_text} {op_symbol} {right_text} = ? (enter decimal)"
+            self.clear_plot()
+
         # ---- Slope ----
         elif self.symbol == "slope":
             x1, y1 = random.randint(-10, 10), random.randint(-10, 10)
@@ -205,7 +235,7 @@ class MathQuizGame:
         correct = False
 
         try:
-            if self.symbol in ["fraction", "slope"]:
+            if self.symbol in ["fraction", "slope", "decimal_multi_div"]:
                 try:
                     answer = Fraction(user_input)
                 except ValueError:
@@ -343,37 +373,49 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                     "text-2xl font-mono mb-4 h-8"
                 )
 
-                keypad_row = ui.column().classes("items-start gap-3")
-                with keypad_row.classes("gap-3 scale-90"):
-                    for row in [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["0", "/", "-"], ["C", "Enter"]]:
-                        with ui.row().classes("gap-3"):
+                # ✅ Keypad now evenly aligned and centered
+                keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90")
+                with keypad_col:
+                    for row in [
+                        ["1", "2", "3"],
+                        ["4", "5", "6"],
+                        ["7", "8", "9"],
+                        ["0", ".", "/"],
+                        ["-", "C", "Enter"]
+                    ]:
+                        with ui.row().classes("gap-3 justify-center"):
                             for key in row:
-                                if key == "C":
-                                    ui.button("Clear", on_click=lambda q=quiz: clear_input(q)).classes(
-                                        "bg-red-500 text-white text-lg p-3 rounded-xl w-24"
-                                    )
-                                elif key == "Enter":
-                                    ui.button("Enter", on_click=lambda q=quiz: q.check_answer()).classes(
-                                        "bg-green-500 text-white text-lg p-3 rounded-xl w-54"
-                                    )
-                                else:
-                                    ui.button(key, on_click=lambda _, k=key, q=quiz: add_char(q, k)).classes(
-                                        "bg-blue-500 text-white text-lg p-3 rounded-xl w-24"
-                                    )
+                                label = "CLEAR" if key == "C" else "ENTER" if key == "Enter" else key
+                                btn_class = (
+                                    "bg-red-500" if key == "C"
+                                    else "bg-green-500" if key == "Enter"
+                                    else "bg-blue-500"
+                                )
+                                ui.button(label,
+                                        on_click=(lambda q=quiz: clear_input(q))
+                                        if key == "C"
+                                        else (lambda q=quiz: q.check_answer())
+                                        if key == "Enter"
+                                        else (lambda _, k=key, q=quiz: add_char(q, k))
+                                        ).classes(
+                                            f"{btn_class} text-white text-lg font-bold p-3 rounded-xl w-20 h-16"
+                                        )
 
                 quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start()).classes(
                     "bg-green-600 text-white text-lg p-3 rounded-xl mt-6"
                 )
-                # hide start button if progress was restored
 
+            # Right column for plot
             with ui.column().classes("items-start justify-start"):
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
+
         ui.timer(0.1, restore_progress, once=True)
     return page
 
 
 # ---------- REGISTER QUIZ PAGES ----------
-make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope"])
+# make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div"])
+make_quiz_page(15, "autumn", ["decimal_multi_div"])
 make_quiz_page(20, "molly", ["+", "-"])
 
 
