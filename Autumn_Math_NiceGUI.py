@@ -414,8 +414,8 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
 
 
 # ---------- REGISTER QUIZ PAGES ----------
-# make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div"])
-make_quiz_page(15, "autumn", ["decimal_multi_div"])
+make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div"])
+# make_quiz_page(15, "autumn", ["decimal_multi_div"])
 make_quiz_page(20, "molly", ["+", "-"])
 
 
