@@ -314,7 +314,7 @@ class MathQuizGame:
             )
 
             if tenth in (0, 5, 10):
-                label = "1" if tenth == 10 else "0.5" if tenth == 5 else "0"
+                label = "1" if tenth == 10 else "1/2" if tenth == 5 else "0"
                 labels.append(
                     f'<text x="{x:.2f}" y="{base_y + 25}" font-size="14" text-anchor="middle" fill="#222">{label}</text>'
                 )
