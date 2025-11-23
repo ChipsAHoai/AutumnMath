@@ -1,6 +1,7 @@
 import os
 import random
 import time
+import math
 from fractions import Fraction
 
 import matplotlib.pyplot as plt
@@ -25,8 +26,11 @@ class MathQuizGame:
 
         self.input_text = ""
         self.feedback = ""
+        self.feedback_color = None
+        self.question_svg = None
 
         self.plot = None  # slope plot
+        self.svg_container = None  # ruler visualization
 
         # store vars for algebra/parens
         self.a = self.b = self.c = self.d = 0
@@ -56,6 +60,7 @@ class MathQuizGame:
         self.symbol = random.choice(self.allowed_ops)
         self.solution = None
         self.question = ""
+        self.question_svg = None
 
         # ---- Arithmetic ----
         if self.symbol == "+":
@@ -224,22 +229,151 @@ class MathQuizGame:
                     plt.tight_layout()
                 self.plot.update()
 
+        # ---- Ruler measurement ----
+        elif self.symbol == "ruler":
+            tick_index = random.randint(1, 16)  # avoid 0 for a non-trivial question
+            self.solution = Fraction(tick_index, 16)
+            self.question = "What measurement is marked? (enter fraction)"
+            self.question_svg = self.build_ruler_svg(tick_index)
+            self.clear_plot()
+
+        # ---- Centimeter ruler ----
+        elif self.symbol == "cm_ruler":
+            tick_tenth = random.randint(1, 10)  # 0.1 cm increments from 0 to 1 cm
+            self.solution = Fraction(tick_tenth, 10)  # centimeters
+            self.question = "What measurement in centimeters is marked? (enter decimal or fraction)"
+            self.question_svg = self.build_centimeter_svg(tick_tenth)
+            self.clear_plot()
+
     def clear_plot(self):
         if self.plot:
             with self.plot:
                 plt.clf()
             self.plot.update()
 
+    def build_ruler_svg(self, tick_index: int) -> str:
+        width, height = 520, 120
+        margin, usable = 20, 480
+        base_y = 70
+        ticks = []
+        labels = []
+
+        for i in range(17):
+            x = margin + usable * i / 16
+            if i % 16 == 0:
+                top = base_y - 40
+            elif i % 8 == 0:
+                top = base_y - 30
+            elif i % 4 == 0:
+                top = base_y - 20
+            elif i % 2 == 0:
+                top = base_y - 15
+            else:
+                top = base_y - 10
+            ticks.append(
+                f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{base_y}" stroke="#222" stroke-width="2" />'
+            )
+
+            if i % 4 == 0:
+                frac = Fraction(i, 16)
+                label = "1" if frac == 1 else str(frac)
+                labels.append(
+                    f'<text x="{x:.2f}" y="{base_y + 25}" font-size="14" text-anchor="middle" fill="#222">{label}</text>'
+                )
+
+        caret_x = margin + usable * tick_index / 16
+        caret = f'<polygon points="{caret_x:.2f},{base_y + 10} {caret_x - 8:.2f},{base_y + 30} {caret_x + 8:.2f},{base_y + 30}" fill="crimson" />'
+
+        svg_parts = [
+            f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">',
+            f'<rect x="0" y="0" width="{width}" height="{height}" fill="white" />',
+            f'<text x="{width - 60}" y="20" font-size="14" text-anchor="end" fill="#444">inches</text>',
+            f'<line x1="{margin}" y1="{base_y}" x2="{margin + usable}" y2="{base_y}" stroke="#222" stroke-width="3" />',
+            *ticks,
+            *labels,
+            caret,
+            "</svg>"
+        ]
+        return "".join(svg_parts)
+
+    def build_centimeter_svg(self, tick_tenth: int) -> str:
+        width, height = 520, 120
+        margin, usable = 20, 480
+        base_y = 70
+        ticks = []
+        labels = []
+
+        for tenth in range(0, 11):  # 0 to 1.0 cm in 0.1 steps
+            x = margin + usable * tenth / 10
+            if tenth in (0, 5, 10):
+                top = base_y - 35
+            else:
+                top = base_y - 18
+            ticks.append(
+                f'<line x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{base_y}" stroke="#222" stroke-width="2" />'
+            )
+
+            if tenth in (0, 5, 10):
+                label = "1" if tenth == 10 else "0.5" if tenth == 5 else "0"
+                labels.append(
+                    f'<text x="{x:.2f}" y="{base_y + 25}" font-size="14" text-anchor="middle" fill="#222">{label}</text>'
+                )
+
+        caret_x = margin + usable * tick_tenth / 10
+        caret = f'<polygon points="{caret_x:.2f},{base_y + 10} {caret_x - 8:.2f},{base_y + 30} {caret_x + 8:.2f},{base_y + 30}" fill="crimson" />'
+
+        svg_parts = [
+            f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">',
+            f'<rect x="0" y="0" width="{width}" height="{height}" fill="white" />',
+            f'<text x="{width - 60}" y="20" font-size="14" text-anchor="end" fill="#444">cm</text>',
+            f'<line x1="{margin}" y1="{base_y}" x2="{margin + usable}" y2="{base_y}" stroke="#222" stroke-width="3" />',
+            *ticks,
+            *labels,
+            caret,
+            "</svg>"
+        ]
+        return "".join(svg_parts)
+
     def check_answer(self):
         user_input = self.input_text.strip()
         correct = False
+        self.feedback_color = None
 
         try:
-            if self.symbol in ["fraction", "slope", "decimal_multi_div"]:
-                try:
-                    answer = Fraction(user_input)
-                except ValueError:
-                    answer = Fraction(float(user_input))
+            if self.symbol in ["fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"]:
+                if self.symbol == "ruler":
+                    if "/" not in user_input:
+                        raise ValueError("Fraction required for ruler")
+                    num_str, den_str = user_input.split("/", 1)
+                    num, den = int(num_str), int(den_str)
+                    if math.gcd(num, den) != 1:
+                        self.feedback = "Use simplest form (e.g., 1/4 instead of 2/8)."
+                        self.feedback_color = "#8b0000"
+                        self.input_text = ""
+                        self.update_ui()
+                        return
+                    answer = Fraction(num, den)
+                elif self.symbol == "cm_ruler":
+                    if "/" in user_input:
+                        num_str, den_str = user_input.split("/", 1)
+                        num, den = int(num_str), int(den_str)
+                        if math.gcd(num, den) != 1:
+                            self.feedback = "Use simplest form (e.g., 1/2 instead of 5/10)."
+                            self.feedback_color = "#8b0000"
+                            self.input_text = ""
+                            self.update_ui()
+                            return
+                        answer = Fraction(num, den)
+                    else:
+                        try:
+                            answer = Fraction(user_input)
+                        except ValueError:
+                            answer = Fraction(float(user_input))
+                else:
+                    try:
+                        answer = Fraction(user_input)
+                    except ValueError:
+                        answer = Fraction(float(user_input))
                 correct = (answer == self.solution)
             else:
                 answer = int(user_input)
@@ -308,8 +442,14 @@ class MathQuizGame:
             self.question_label.set_text(self.question)
         if self.feedback_label:
             self.feedback_label.set_text(self.feedback)
+            if self.feedback_color:
+                self.feedback_label.style(f"color: {self.feedback_color}")
+            else:
+                self.feedback_label.style("")  # reset to default
         if self.answer_label:
             self.answer_label.set_text(self.input_text)
+        if self.svg_container:
+            self.svg_container.set_content(self.question_svg or "")
 
 
 # keypad helpers
@@ -352,6 +492,14 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                 quiz.symbol = saved.get("symbol", "")
                 quiz.start_time = saved.get("start_time", time.time())
                 quiz.feedback = "⏪ Progress restored!"
+                # rebuild SVGs for ruler questions on restore
+                try:
+                    if quiz.symbol == "ruler" and isinstance(quiz.solution, Fraction):
+                        quiz.question_svg = quiz.build_ruler_svg(int(quiz.solution * 16))
+                    elif quiz.symbol == "cm_ruler" and isinstance(quiz.solution, Fraction):
+                        quiz.question_svg = quiz.build_centimeter_svg(int(quiz.solution * 10))
+                except Exception:
+                    quiz.question_svg = None
                 quiz.update_ui()
                 if quiz.start_button:
                     quiz.start_button.visible = False
@@ -407,6 +555,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
 
             # Right column for plot
             with ui.column().classes("items-start justify-start"):
+                quiz.svg_container = ui.html("").classes("w-[520px] h-[140px]")
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
 
         ui.timer(0.1, restore_progress, once=True)
@@ -414,7 +563,8 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
 
 
 # ---------- REGISTER QUIZ PAGES ----------
-make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div"])
+# make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
+make_quiz_page(15, "autumn", ["ruler", "cm_ruler"])
 # make_quiz_page(15, "autumn", ["decimal_multi_div"])
 make_quiz_page(20, "molly", ["+", "-"])
 
