@@ -1,1 +1,3 @@
 art==5.8
+matplotlib==3.10.6
+nicegui==2.24.1
