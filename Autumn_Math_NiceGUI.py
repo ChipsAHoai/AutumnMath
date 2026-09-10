@@ -3,7 +3,7 @@ import random
 import time
 import math
 from fractions import Fraction
-
+import handlers
 import matplotlib.pyplot as plt
 from nicegui import ui, app
 
@@ -62,187 +62,15 @@ class MathQuizGame:
         self.question = ""
         self.question_svg = None
 
-        # ---- Arithmetic ----
-        if self.symbol == "+":
-            x, y = random.randint(1, 100), random.randint(1, 100)
-            self.solution = x + y
-            self.question = f"{x} + {y} = ?"
-            self.clear_plot()
-
-        elif self.symbol == "-":
-            x = random.randint(1, 100)
-            y = random.randint(1, x)
-            self.solution = x - y
-            self.question = f"{x} - {y} = ?"
-            self.clear_plot()
-
-        elif self.symbol == "x":
-            x, y = random.randint(3, 12), random.randint(3, 12)
-            self.solution = x * y
-            self.question = f"{x} × {y} = ?"
-            self.clear_plot()
-
-        elif self.symbol == "÷":
-            divisor = random.randint(2, 12)
-            y = random.randint(2, 9)
-            x = divisor * y
-            self.solution = divisor
-            self.question = f"{x} ÷ {y} = ?"
-            self.clear_plot()
-
-        # ---- Fractions ----
-        elif self.symbol == "fraction":
-            num1, den1 = random.randint(1, 20), random.randint(1, 20)
-            num2, den2 = random.randint(1, 20), random.randint(1, 20)
-            self.f1, self.f2 = Fraction(num1, den1), Fraction(num2, den2)
-            self.solution = self.f1 + self.f2
-            self.question = f"{self.f1} + {self.f2} = ? (simplify if possible)"
-            self.clear_plot()
-
-        # ---- Algebra ----
-        elif self.symbol == "alg":
-            formats = ["a*x+b=c", "a*x-b=c", "a+b*x=c"]
-            self.algebra_format = random.choice(formats)
-
-            if self.algebra_format == "a*x+b=c":
-                self.a, x_val, self.b = random.randint(
-                    1, 20), random.randint(1, 20), random.randint(1, 20)
-                self.c = self.a * x_val + self.b
-                self.solution = x_val
-                self.question = f"{self.a} * __ + {self.b} = {self.c}"
-
-            elif self.algebra_format == "a*x-b=c":
-                self.a, x_val, self.b = random.randint(
-                    1, 20), random.randint(1, 20), random.randint(1, 20)
-                self.c = self.a * x_val - self.b
-                self.solution = x_val
-                self.question = f"{self.a} * __ - {self.b} = {self.c}"
-
-            elif self.algebra_format == "a+b*x=c":
-                self.b, x_val, self.a = random.randint(
-                    1, 20), random.randint(1, 20), random.randint(1, 20)
-                self.c = self.a + self.b * x_val
-                self.solution = x_val
-                self.question = f"{self.a} + {self.b} * __ = {self.c}"
-
-            self.clear_plot()
-
-        # ---- Mixed expression ----
-        elif self.symbol == "mix":
-            self.a, self.b, self.c = random.randint(
-                1, 20), random.randint(1, 20), random.randint(1, 20)
-            self.solution = (self.a + self.b) * self.c
-            self.question = f"({self.a} + {self.b}) * {self.c} = ?"
-            self.clear_plot()
-
-        # ---- Multi-step algebra ----
-        elif self.symbol == "multi_alg":
-            x_val = random.randint(1, 20)
-            self.a = random.randint(1, 20)
-            self.c = random.randint(self.a + 1, self.a + 4)
-            self.b = random.randint(0, 20)
-            left = self.a * x_val + self.b
-            right = self.c * x_val
-            self.d = right - left
-            self.solution = x_val
-            self.question = f"{self.a}x + {self.b} = {self.c}x - {self.d}"
-            self.clear_plot()
-
-        # ---- Parentheses ----
-        elif self.symbol == "parens":
-            formats = ["(a + b) * c", "a * (b - c)",
-                       "(a + b) + (c + d)", "(a * b) - (c * d)"]
-            chosen = random.choice(formats)
-            if chosen == "(a + b) * c":
-                self.a, self.b, self.c = random.randint(
-                    1, 20), random.randint(1, 20), random.randint(1, 20)
-                self.solution = (self.a + self.b) * self.c
-                self.question = f"({self.a} + {self.b}) * {self.c} = ?"
-            elif chosen == "a * (b - c)":
-                self.b, self.c, self.a = random.randint(
-                    5, 20), random.randint(1, 20), random.randint(1, 20)
-                self.solution = self.a * (self.b - self.c)
-                self.question = f"{self.a} * ({self.b} - {self.c}) = ?"
-            elif chosen == "(a + b) + (c + d)":
-                self.a, self.b, self.c, self.d = [
-                    random.randint(1, 10) for _ in range(4)]
-                self.solution = (self.a + self.b) + (self.c + self.d)
-                self.question = f"({self.a} + {self.b}) + ({self.c} + {self.d}) = ?"
-            elif chosen == "(a * b) - (c * d)":
-                self.a, self.b, self.c, self.d = random.randint(1, 20), random.randint(
-                    1, 2), random.randint(1, 2), random.randint(1, 20)
-                self.solution = (self.a * self.b) - (self.c * self.d)
-                self.question = f"({self.a} * {self.b}) - ({self.c} * {self.d}) = ?"
-            self.clear_plot()
-
-        elif self.symbol == "decimal_multi_div":
-            # curated pools keep decimal variety while avoiding repeating results on division
-            multiplication_pool = [
-                "0.05", "0.7", "0.08", "1.25", "2.40", "0.64", "3.5",
-                "0.125", "2.05", "4.08", "0.500", "3.040", "5.020"
-            ]
-            divisor_pool = [
-                "0.05", "0.1", "0.125", "0.2", "0.25", "0.4", "0.5",
-                "0.8", "1.0", "1.25", "2.0", "2.5", "5.0"
-            ]
-
-            def pick_decimal(pool):
-                base = random.choice(pool)
-                if "." in base:
-                    decimals = base.split(".")[1]
-                    if len(decimals) < 3 and random.random() < 0.4:
-                        base = base + "0"
-                return base, Fraction(base)
-
-            op_symbol = random.choice(["×", "÷"])
-            left_text, left_value = pick_decimal(multiplication_pool)
-            if op_symbol == "×":
-                right_text, right_value = pick_decimal(multiplication_pool)
-                self.solution = left_value * right_value
-            else:
-                right_text, right_value = pick_decimal(divisor_pool)
-                self.solution = left_value / right_value
-            self.question = f"{left_text} {op_symbol} {right_text} = ? (enter decimal)"
-            self.clear_plot()
-
-        # ---- Slope ----
-        elif self.symbol == "slope":
-            x1, y1 = random.randint(-10, 10), random.randint(-10, 10)
-            x2, y2 = random.randint(-10, 10), random.randint(-10, 10)
-            while x2 == x1:
-                x2 = random.randint(-10, 10)
-            delta_y, delta_x = y2 - y1, x2 - x1
-            self.solution = Fraction(delta_y, delta_x)
-            self.question = f"Slope through ({x1},{y1}) and ({x2},{y2}) = ? (fraction)"
-
-            if self.plot:
-                with self.plot:
-                    plt.clf()
-                    plt.axhline(0, color='gray', linewidth=0.8)
-                    plt.axvline(0, color='gray', linewidth=0.8)
-                    plt.grid(True, linestyle='--', linewidth=0.5)
-                    plt.plot([x1, x2], [y1, y2], color='crimson', linewidth=2)
-                    plt.scatter([x1, x2], [y1, y2], color='dodgerblue', zorder=5)
-                    plt.text(x1, y1, f'({x1},{y1})', fontsize=9)
-                    plt.text(x2, y2, f'({x2},{y2})', fontsize=9)
-                    plt.title("Slope Between Two Points")
-                    plt.tight_layout()
-                self.plot.update()
-
-        # ---- Ruler measurement ----
-        elif self.symbol == "ruler":
-            tick_index = random.randint(1, 16)  # avoid 0 for a non-trivial question
-            self.solution = Fraction(tick_index, 16)
-            self.question = "What measurement is marked? (enter fraction)"
-            self.question_svg = self.build_ruler_svg(tick_index)
-            self.clear_plot()
-
-        # ---- Centimeter ruler ----
-        elif self.symbol == "cm_ruler":
-            tick_tenth = random.randint(1, 10)  # 0.1 cm increments from 0 to 1 cm
-            self.solution = Fraction(tick_tenth, 10)  # centimeters
-            self.question = "What measurement in centimeters is marked? (enter decimal or fraction)"
-            self.question_svg = self.build_centimeter_svg(tick_tenth)
+        handler = handlers.registry.get(self.symbol)
+        if handler:
+            try:
+                handler(self)
+            except Exception:
+                self.question = "Error generating problem"
+                self.clear_plot()
+        else:
+            self.question = "Unsupported operation"
             self.clear_plot()
 
     def clear_plot(self):
@@ -467,7 +295,7 @@ def clear_input(quiz: MathQuizGame):
 
 # ---------- PAGE FACTORY ----------
 def make_quiz_page(total_problems: int, name: str, ops: list):
-    @ui.page(f'/{name}')
+    @ui.page(f'/{name}', dark=True)
     def page():
         quiz = MathQuizGame(total_problems=total_problems,
                             allowed_ops=ops, name=name)
@@ -495,9 +323,9 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                 # rebuild SVGs for ruler questions on restore
                 try:
                     if quiz.symbol == "ruler" and isinstance(quiz.solution, Fraction):
-                        quiz.question_svg = quiz.build_ruler_svg(int(quiz.solution * 16))
+                        quiz.question_svg = handlers.ruler.build_ruler_svg(int(quiz.solution * 16))
                     elif quiz.symbol == "cm_ruler" and isinstance(quiz.solution, Fraction):
-                        quiz.question_svg = quiz.build_centimeter_svg(int(quiz.solution * 10))
+                        quiz.question_svg = handlers.cm_ruler.build_centimeter_svg(int(quiz.solution * 10))
                 except Exception:
                     quiz.question_svg = None
                 quiz.update_ui()
@@ -555,7 +383,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
 
             # Right column for plot
             with ui.column().classes("items-start justify-start"):
-                quiz.svg_container = ui.html("").classes("w-[520px] h-[140px]")
+                quiz.svg_container = ui.html("", sanitize=False).classes("w-[520px] h-[140px]")
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
 
         ui.timer(0.1, restore_progress, once=True)
@@ -563,13 +391,13 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
 
 
 # ---------- REGISTER QUIZ PAGES ----------
-make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
-make_quiz_page(20, "molly", ["+", "-"])
+# make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
+make_quiz_page(15, "autumn", ["slope"])
+make_quiz_page(20, "molly", ["+", "-", "*"])
 
 
 # ---------- ROOT PAGE ----------
-@ui.page('/')
-def index():
+def root_page():
     with ui.column().classes("items-center justify-center h-screen gap-6"):
         ui.label("Welcome to Peaccion Math!").classes(
             "text-3xl font-bold mb-8")
@@ -580,5 +408,5 @@ def index():
             "bg-green-500 text-white text-xl p-6 rounded-xl w-64"
         )
 
-
+ui.page('/',dark=True)(root_page)
 ui.run(storage_secret='super-secret-key')
