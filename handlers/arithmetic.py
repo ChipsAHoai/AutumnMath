@@ -17,7 +17,8 @@ def minus(quiz):
 
 
 def times(quiz):
-    x, y = random.randint(3, 12), random.randint(3, 12)
+    lower, upper = quiz.multiplication_range
+    x, y = random.randint(lower, upper), random.randint(lower, upper)
     quiz.solution = x * y
     quiz.question = f"{x} × {y} = ?"
     quiz.clear_plot()

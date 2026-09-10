@@ -6,4 +6,4 @@ def main_page():
     ui.label('Welcome to the NiceGUI App!')
     ui.button('Click Me', on_click=lambda: ui.notify('Button clicked!'))
 
-ui.run()
+ui.run(reload=False, show=False)

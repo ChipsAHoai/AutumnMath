@@ -10,14 +10,17 @@ from nicegui import ui, app
 
 # ---------- BASE QUIZ CLASS ----------
 class MathQuizGame:
-    def __init__(self, total_problems=20, allowed_ops=None, name="player"):
+    def __init__(self, total_problems=20, allowed_ops=None, name="player", multiplication_range=(3, 12)):
         self.total_problems = total_problems
         self.allowed_ops = allowed_ops or ["+"]
         self.name = name
+        self.multiplication_range = multiplication_range
 
         self.current_index = 0
         self.wrong = 0
         self.start_time = None
+        self.answer_pending = False
+        self.slope_points = None
 
         self.question = ""
         self.solution = None
@@ -45,11 +48,16 @@ class MathQuizGame:
 
     def start(self):
         # Only reset if not continuing a restored quiz
-        if self.current_index == 0:
+        if self.start_time is None or self.current_index >= self.total_problems:
             self.current_index = 0
             self.wrong = 0
             self.start_time = time.time()
+            self.answer_pending = False
+            self.input_text = ""
+            self.feedback = ""
+            self.feedback_color = None
             self.generate_problem()
+            self.save_progress()
 
         self.update_ui()
         if self.start_button and self.start_button.visible:
@@ -61,6 +69,7 @@ class MathQuizGame:
         self.solution = None
         self.question = ""
         self.question_svg = None
+        self.slope_points = None
 
         handler = handlers.registry.get(self.symbol)
         if handler:
@@ -163,6 +172,8 @@ class MathQuizGame:
         return "".join(svg_parts)
 
     def check_answer(self):
+        if self.answer_pending or self.start_time is None or self.current_index >= self.total_problems:
+            return
         user_input = self.input_text.strip()
         correct = False
         self.feedback_color = None
@@ -213,22 +224,15 @@ class MathQuizGame:
             return
 
         if correct:
+            self.answer_pending = True
+            self.save_progress()
             ui.notify(f"Great Job {self.name.capitalize()}!", type='positive')
             self.feedback = "✅ Correct!"
             self.input_text = ""
             self.update_ui()          # immediate visual feedback
 
             # small pause so user can see "Correct!" message before next problem
-            def next_problem():
-                self.current_index += 1
-                if self.current_index < self.total_problems:
-                    self.feedback = ""  # clear old feedback
-                    self.generate_problem()
-                else:
-                    self.end_game()
-                self.update_ui()
-
-            ui.timer(0.6, next_problem, once=True)  # wait 0.6s before next question
+            ui.timer(0.6, self.advance_problem, once=True)
 
         else:
             ui.notify(f"Try Again {self.name.capitalize()}!", type='negative')
@@ -236,8 +240,23 @@ class MathQuizGame:
             self.wrong += 1
             self.input_text = ""
             self.update_ui()
+            self.save_progress()
 
-        # --- save progress ---
+    def advance_problem(self):
+        if not self.answer_pending:
+            return
+        self.answer_pending = False
+        self.current_index += 1
+        self.input_text = ""
+        self.feedback = ""
+        if self.current_index < self.total_problems:
+            self.generate_problem()
+            self.save_progress()
+        else:
+            self.end_game()
+        self.update_ui()
+
+    def save_progress(self):
         app.storage.user[self.name] = {
             "current_index": self.current_index,
             "wrong": self.wrong,
@@ -245,12 +264,38 @@ class MathQuizGame:
             "solution": str(self.solution),
             "symbol": self.symbol,
             "start_time": self.start_time,
+            "answer_pending": self.answer_pending,
+            "slope_points": self.slope_points,
         }
+
+    def restore_progress(self, saved):
+        self.current_index = saved.get("current_index", 0)
+        self.wrong = saved.get("wrong", 0)
+        self.question = saved.get("question", "")
+        sol = saved.get("solution", "")
+        self.solution = Fraction(sol) if "/" in sol else int(sol)
+        self.symbol = saved.get("symbol", "")
+        self.start_time = saved.get("start_time") or time.time()
+        self.answer_pending = saved.get("answer_pending", False)
+        self.slope_points = saved.get("slope_points")
+        if self.answer_pending:
+            self.advance_problem()
+            return
+        self.feedback = "⏪ Progress restored!"
+        if self.symbol == "ruler":
+            self.question_svg = handlers.ruler.build_ruler_svg(int(self.solution * 16))
+        elif self.symbol == "cm_ruler":
+            self.question_svg = handlers.cm_ruler.build_centimeter_svg(int(self.solution * 10))
+        elif self.symbol == "slope":
+            handlers.slope.restore(self)
+        self.update_ui()
 
     def end_game(self):
         total_time = round(time.time() - self.start_time, 2)
         self.question = f"🎉 Finished! Time: {total_time}s, Wrong: {self.wrong}"
         self.feedback = ""
+        self.solution = None
+        self.question_svg = None
         self.clear_plot()
         app.storage.user.pop(self.name, None)
 
@@ -282,6 +327,8 @@ class MathQuizGame:
 
 # keypad helpers
 def add_char(quiz: MathQuizGame, ch: str):
+    if quiz.answer_pending:
+        return
     quiz.input_text += ch
     if quiz.answer_label:
         quiz.answer_label.set_text(quiz.input_text)
@@ -294,11 +341,11 @@ def clear_input(quiz: MathQuizGame):
 
 
 # ---------- PAGE FACTORY ----------
-def make_quiz_page(total_problems: int, name: str, ops: list):
+def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_range=(3, 12)):
     @ui.page(f'/{name}', dark=True)
     def page():
         quiz = MathQuizGame(total_problems=total_problems,
-                            allowed_ops=ops, name=name)
+                            allowed_ops=ops, name=name, multiplication_range=multiplication_range)
 
         # --- try to restore saved progress ---
         # placeholder until client connects
@@ -312,29 +359,23 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
                 saved = None
 
             if saved:
-                quiz.current_index = saved.get("current_index", 0)
-                quiz.wrong = saved.get("wrong", 0)
-                quiz.question = saved.get("question", "")
-                sol = saved.get("solution", "")
-                quiz.solution = Fraction(sol) if "/" in sol else int(sol) if sol.isdigit() else None
-                quiz.symbol = saved.get("symbol", "")
-                quiz.start_time = saved.get("start_time", time.time())
-                quiz.feedback = "⏪ Progress restored!"
-                # rebuild SVGs for ruler questions on restore
                 try:
-                    if quiz.symbol == "ruler" and isinstance(quiz.solution, Fraction):
-                        quiz.question_svg = handlers.ruler.build_ruler_svg(int(quiz.solution * 16))
-                    elif quiz.symbol == "cm_ruler" and isinstance(quiz.solution, Fraction):
-                        quiz.question_svg = handlers.cm_ruler.build_centimeter_svg(int(quiz.solution * 10))
-                except Exception:
+                    quiz.restore_progress(saved)
+                except (ValueError, TypeError, ZeroDivisionError):
+                    app.storage.user.pop(name, None)
+                    quiz.current_index = 0
+                    quiz.start_time = None
+                    quiz.answer_pending = False
+                    quiz.solution = None
                     quiz.question_svg = None
-                quiz.update_ui()
-                if quiz.start_button:
-                    quiz.start_button.visible = False
-                    quiz.start_button.update()
-            else:
-                quiz.question = "Press ▶️ Start Quiz to begin"
-                quiz.update_ui()
+                    quiz.clear_plot()
+                else:
+                    if quiz.start_button:
+                        quiz.start_button.visible = quiz.current_index >= quiz.total_problems
+                        quiz.start_button.update()
+                    return
+            quiz.question = "Press ▶️ Start Quiz to begin"
+            quiz.update_ui()
 
         with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12"):
             with ui.column().classes("items-start"):
@@ -393,7 +434,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list):
 # ---------- REGISTER QUIZ PAGES ----------
 # make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
 make_quiz_page(15, "autumn", ["slope"])
-make_quiz_page(20, "molly", ["+", "-", "*"])
+make_quiz_page(20, "molly", ["+", "-", "*"], multiplication_range=(1, 5))
 
 
 # ---------- ROOT PAGE ----------
@@ -409,4 +450,5 @@ def root_page():
         )
 
 ui.page('/',dark=True)(root_page)
-ui.run(storage_secret='super-secret-key')
+# Disable development file watching when running on the server.
+ui.run(storage_secret='super-secret-key', reload=False, show=False)

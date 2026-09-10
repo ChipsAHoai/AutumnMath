@@ -1,4 +1,5 @@
 import random
+import re
 from fractions import Fraction
 import matplotlib.pyplot as plt
 
@@ -11,6 +12,22 @@ def generate(quiz):
     delta_y, delta_x = y2 - y1, x2 - x1
     quiz.solution = Fraction(delta_y, delta_x)
     quiz.question = f"Slope through ({x1},{y1}) and ({x2},{y2}) = ? (fraction)"
+    quiz.slope_points = [(x1, y1), (x2, y2)]
+    draw_plot(quiz)
+
+
+def restore(quiz):
+    if not quiz.slope_points:
+        # Older saved quizzes only stored the coordinates in the question text.
+        points = re.findall(r"\((-?\d+),\s*(-?\d+)\)", quiz.question)
+        if len(points) != 2:
+            raise ValueError("Saved slope question has no coordinates")
+        quiz.slope_points = [tuple(map(int, point)) for point in points]
+    draw_plot(quiz)
+
+
+def draw_plot(quiz):
+    (x1, y1), (x2, y2) = quiz.slope_points
 
     if quiz.plot:
         with quiz.plot:

@@ -4,6 +4,7 @@ registry = {
     "+": arithmetic.plus,
     "-": arithmetic.minus,
     "x": arithmetic.times,
+    "*": arithmetic.times,
     "÷": arithmetic.divide,
     "fraction": fraction.generate,
     "alg": alg.generate,
