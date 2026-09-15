@@ -15,6 +15,32 @@ with patch.object(ui, 'run'):
 MathQuizGame = application['MathQuizGame']
 
 
+class HtmlCompatibilityTests(unittest.TestCase):
+    def test_svg_container_supports_both_html_signatures(self):
+        create = application['create_svg_container']
+        element = Mock()
+        element.classes.return_value = element
+
+        def legacy_html(content=''):
+            self.assertEqual(content, '')
+            return element
+
+        def modern_html(content='', *, sanitize):
+            self.assertEqual(content, '')
+            self.assertIs(sanitize, False)
+            return element
+
+        for html in (legacy_html, modern_html):
+            with self.subTest(html=html.__name__), patch.dict(create.__globals__, {'ui': SimpleNamespace(html=html)}):
+                self.assertIs(create(), element)
+
+    def test_svg_container_with_installed_nicegui(self):
+        element = application['create_svg_container']()
+        self.addCleanup(element.delete)
+        element.set_content('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+        self.assertIn('<svg', element.content)
+
+
 class QuizProgressTests(unittest.TestCase):
     def setUp(self):
         self.storage = {}
