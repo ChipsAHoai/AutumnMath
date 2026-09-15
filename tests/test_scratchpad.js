@@ -16,7 +16,16 @@ for (const method of ['setTransform', 'beginPath', 'moveTo', 'lineTo', 'stroke',
   ctx[method] = () => {};
 }
 const captured = new Set();
+const listeners = new Map();
 const canvas = {
+  addEventListener(type, handler, options) {
+    assert(options.passive === false, 'Touch gesture cancellation must be non-passive');
+    listeners.set(type, handler);
+  },
+  removeEventListener(type, handler) {
+    assert(listeners.get(type) === handler, 'Remove the registered handler');
+    listeners.delete(type);
+  },
   clientWidth: 400, clientHeight: 300, clientLeft: 1, clientTop: 1,
   getContext: () => ctx,
   getBoundingClientRect: () => ({left: 0, top: 0}),
@@ -27,6 +36,11 @@ const canvas = {
 const pad = {$refs: {canvas}};
 for (const [name, method] of Object.entries(component.methods)) pad[name] = method.bind(pad);
 component.mounted.call(pad);
+for (const type of ['touchstart', 'touchmove']) {
+  let prevented = false;
+  listeners.get(type)({cancelable: true, preventDefault() { prevented = true; }});
+  assert(prevented, 'Touch gestures must not select or scroll the page');
+}
 assert(canvas.width === 800 && canvas.height === 600, 'High-resolution backing canvas');
 const event = (type, id = 1, x = 101) => ({
   type, pointerId: id, isPrimary: true, button: 0, clientX: x, clientY: 76,
@@ -54,4 +68,5 @@ pad.clear();
 assert(pad.strokes.length === 0, 'Clear removes notes');
 component.beforeUnmount.call(pad);
 assert(disconnected, 'Resize observer is cleaned up');
+assert(listeners.size === 0, 'Touch listeners are cleaned up');
 print('Scratchpad drawing, resize, cancellation, undo, clear, and cleanup checks passed.');

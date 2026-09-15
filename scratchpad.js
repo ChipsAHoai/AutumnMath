@@ -1,7 +1,9 @@
 export default {
   template: `
     <section aria-label="Scratchpad" @keydown.stop @keyup.stop
-             style="width:100%; max-width:900px; min-width:0">
+             @selectstart.prevent @dragstart.prevent @contextmenu.prevent
+             style="width:100%; max-width:900px; min-width:0;
+                    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none">
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px">
         <h2 style="font-size:20px; font-weight:600; margin:0; flex:1">Scratchpad</h2>
         <button type="button" @click="undo" style="padding:6px 12px; border:1px solid #94a3b8; border-radius:6px">Undo</button>
@@ -9,23 +11,35 @@ export default {
       </div>
       <p style="font-size:14px; margin:0 0 8px">Draw with your finger, stylus, or mouse. Notes stay until cleared or the page reloads.</p>
       <canvas ref="canvas" aria-label="Drawing area for handwritten working"
+              draggable="false"
               @pointerdown="startStroke" @pointermove="moveStroke"
               @pointerup="endStroke" @pointercancel="endStroke"
               @lostpointercapture="endStroke" @contextmenu.prevent
               style="display:block; width:100%; aspect-ratio:4/3; background:white;
                      border:1px solid #94a3b8; border-radius:8px; touch-action:none;
-                     user-select:none; cursor:crosshair"></canvas>
+                     -webkit-user-select:none; user-select:none;
+                     -webkit-touch-callout:none; cursor:crosshair"></canvas>
     </section>`,
   mounted() {
     this.strokes = [];
     this.pointer = null;
     this.context = this.$refs.canvas.getContext('2d');
+    // Explicitly non-passive so mobile browsers allow us to cancel long-press gestures.
+    this.preventTouchGesture = event => {
+      if (event.cancelable) event.preventDefault();
+    };
+    for (const type of ['touchstart', 'touchmove']) {
+      this.$refs.canvas.addEventListener(type, this.preventTouchGesture, {passive: false});
+    }
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(this.$refs.canvas);
     this.resize();
   },
   beforeUnmount() {
     this.observer.disconnect();
+    for (const type of ['touchstart', 'touchmove']) {
+      this.$refs.canvas.removeEventListener(type, this.preventTouchGesture);
+    }
   },
   methods: {
     resize() {
