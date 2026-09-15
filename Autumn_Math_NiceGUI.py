@@ -327,7 +327,14 @@ class MathQuizGame:
             self.progress_label.set_text(
                 f"{self.current_index} out of {self.total_problems}")
         if self.question_label:
-            self.question_label.set_text(self.question)
+            displayed_question = handlers.arithmetic.vertical_question(self.question)
+            if displayed_question != self.question:
+                self.question_label.classes(add='font-mono whitespace-pre text-4xl',
+                                            remove='whitespace-normal text-2xl')
+            else:
+                self.question_label.classes(add='whitespace-normal text-2xl',
+                                            remove='font-mono whitespace-pre text-4xl')
+            self.question_label.set_text(displayed_question)
         if self.feedback_label:
             self.feedback_label.set_text(self.feedback)
             if self.feedback_color:

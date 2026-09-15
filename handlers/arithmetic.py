@@ -1,4 +1,17 @@
 import random
+import re
+
+
+def vertical_question(question):
+    """Align place values in addition/subtraction, including restored questions."""
+    match = re.fullmatch(r"(\d+) ([+-]) (\d+) = \?", question)
+    if not match:
+        return question
+    first, operator, second = match.groups()
+    if operator == '+' and len(second) > len(first):
+        first, second = second, first
+    width = max(len(first), len(second))
+    return f"  {first:>{width}}\n{operator} {second:>{width}}\n{'─' * (width + 2)}"
 
 
 def plus(quiz):
