@@ -7,6 +7,7 @@ from fractions import Fraction
 import handlers
 import matplotlib.pyplot as plt
 from nicegui import ui, app
+from scratchpad import Scratchpad
 
 
 # ---------- BASE QUIZ CLASS ----------
@@ -433,7 +434,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
             # Elsewhere, ui.keyboard handles Enter normally.
             quiz_layout.on('keydown.capture', lambda e: handle_quiz_key(quiz, 'Enter'), js_handler='''(e) => {
                 if (e.key === 'Enter' && e.target.closest('button') &&
-                    !e.target.closest('[data-quiz-start]')) {
+                    e.target.closest('[data-quiz-keypad]')) {
                     e.preventDefault();
                     e.stopPropagation();
                     if (!e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) emit({});
@@ -441,7 +442,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
             }''')
             quiz_layout.on('keyup.capture', js_handler='''(e) => {
                 if (e.key === 'Enter' && e.target.closest('button') &&
-                    !e.target.closest('[data-quiz-start]')) {
+                    e.target.closest('[data-quiz-keypad]')) {
                     e.preventDefault();
                     e.stopPropagation();
                 }
@@ -471,7 +472,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                 ui.label('Type your answer • Enter: submit • Backspace: erase • Esc: clear').classes('text-sm mb-2')
 
                 # ✅ Keypad now evenly aligned and centered
-                keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90")
+                keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90").props('data-quiz-keypad')
                 with keypad_col:
                     for row in [
                         ["1", "2", "3"],
@@ -502,8 +503,9 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                     "bg-green-600 text-white text-lg p-3 rounded-xl mt-6"
                 ).props('data-quiz-start')
 
-            # Right column for plot
-            with ui.column().classes("items-start justify-start"):
+            # Scratch work stays visible while moving through follow-up questions.
+            with ui.column().classes("items-start justify-start w-full min-w-0").style('flex: 1 1 520px; max-width: 900px'):
+                Scratchpad().classes('w-full')
                 quiz.svg_container = create_svg_container()
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
 
