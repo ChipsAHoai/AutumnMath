@@ -33,6 +33,76 @@ class QuizProgressTests(unittest.TestCase):
         quiz.input_text = str(quiz.solution)
         quiz.check_answer()
 
+    def test_keyboard_entry_editing_and_submit(self):
+        quiz = self.quiz()
+        quiz.start()
+        quiz.answer_label = Mock()
+        key = application['handle_quiz_key']
+        for char in '-12/3.5':
+            key(quiz, char)
+        self.assertEqual(quiz.input_text, '-12/3.5')
+        key(quiz, 'Backspace')
+        self.assertEqual(quiz.input_text, '-12/3.')
+        quiz.answer_label.set_value.assert_called_with('-12/3.')
+        key(quiz, 'Escape')
+        self.assertEqual(quiz.input_text, '')
+        key(quiz, 'Enter')
+        self.assertEqual(quiz.wrong, 0)
+        for char in str(quiz.solution):
+            key(quiz, char)
+        key(quiz, 'Enter')
+        self.assertTrue(quiz.answer_pending)
+        key(quiz, '9')
+        self.assertEqual(quiz.input_text, '')
+        self.ui.timer.assert_called_once()
+
+    def test_keyboard_ignores_shortcuts_repeats_and_keyup(self):
+        quiz = self.quiz()
+        quiz.start()
+        for keydown, repeat, modifier in ((False, False, None), (True, True, None),
+                                         (True, False, 'ctrl'), (True, False, 'meta'), (True, False, 'alt')):
+            event = SimpleNamespace(
+                action=SimpleNamespace(keydown=keydown, repeat=repeat),
+                modifiers=SimpleNamespace(ctrl=modifier == 'ctrl', meta=modifier == 'meta', alt=modifier == 'alt'),
+                key=SimpleNamespace(name='1'),
+            )
+            application['handle_keyboard_event'](quiz, event)
+        self.assertEqual(quiz.input_text, '')
+
+    def test_keyboard_ignores_input_before_start_and_after_completion(self):
+        quiz = self.quiz()
+        application['handle_quiz_key'](quiz, '1')
+        self.assertEqual(quiz.input_text, '')
+        quiz.start()
+        quiz.current_index = quiz.total_problems
+        application['handle_quiz_key'](quiz, '1')
+        self.assertEqual(quiz.input_text, '')
+
+    def test_native_answer_input_binding_focus_and_keypad(self):
+        quiz = self.quiz()
+        field = ui.input('Your answer').bind_value(quiz, 'input_text')
+        quiz.answer_label = field
+        self.addCleanup(field.delete)
+        with patch.object(field, 'run_method') as run_method:
+            quiz.start()
+            self.assertTrue(field.enabled)
+            run_method.assert_called_with('focus')
+            # Native input changes and keypad changes share the same answer.
+            field.set_value('12')
+            self.assertEqual(quiz.input_text, '12')
+            application['add_char'](quiz, '3')
+            self.assertEqual(field.value, '123')
+            application['clear_input'](quiz)
+            self.assertEqual(field.value, '')
+            field.set_value(str(quiz.solution))
+            application['handle_quiz_key'](quiz, 'Enter')
+            self.assertTrue(quiz.answer_pending)
+            self.assertFalse(field.enabled)
+            quiz.advance_problem()
+            self.assertTrue(field.enabled)
+            self.assertEqual(field.value, '')
+            run_method.assert_called_with('focus')
+
     def test_start_saves_first_question(self):
         quiz = self.quiz()
         quiz.start()

@@ -333,7 +333,11 @@ class MathQuizGame:
             else:
                 self.feedback_label.style("")  # reset to default
         if self.answer_label:
-            self.answer_label.set_text(self.input_text)
+            self.answer_label.set_value(self.input_text)
+            active = self.start_time is not None and self.current_index < self.total_problems and not self.answer_pending
+            self.answer_label.set_enabled(active)
+            if active:
+                self.answer_label.run_method('focus')
         if self.svg_container:
             self.svg_container.set_content(self.question_svg or "")
 
@@ -344,13 +348,37 @@ def add_char(quiz: MathQuizGame, ch: str):
         return
     quiz.input_text += ch
     if quiz.answer_label:
-        quiz.answer_label.set_text(quiz.input_text)
+        quiz.answer_label.set_value(quiz.input_text)
 
 
 def clear_input(quiz: MathQuizGame):
     quiz.input_text = ""
     if quiz.answer_label:
-        quiz.answer_label.set_text("")
+        quiz.answer_label.set_value("")
+
+
+def handle_quiz_key(quiz: MathQuizGame, key: str):
+    if quiz.answer_pending or quiz.start_time is None or quiz.current_index >= quiz.total_problems:
+        return
+    if key in "0123456789.-/" and len(key) == 1:
+        add_char(quiz, key)
+    elif key == "Enter":
+        if quiz.input_text.strip():
+            quiz.check_answer()
+    elif key == "Backspace":
+        quiz.input_text = quiz.input_text[:-1]
+        if quiz.answer_label:
+            quiz.answer_label.set_value(quiz.input_text)
+    elif key in ("Escape", "Delete"):
+        clear_input(quiz)
+
+
+def handle_keyboard_event(quiz: MathQuizGame, event):
+    if not event.action.keydown or event.action.repeat:
+        return
+    if event.modifiers.ctrl or event.modifiers.alt or event.modifiers.meta:
+        return
+    handle_quiz_key(quiz, event.key.name)
 
 
 # ---------- PAGE FACTORY ----------
@@ -359,6 +387,8 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
     def page():
         quiz = MathQuizGame(total_problems=total_problems,
                             allowed_ops=ops, name=name, multiplication_range=multiplication_range)
+        ui.keyboard(on_key=lambda e: handle_keyboard_event(quiz, e), repeating=False,
+                    ignore=['input', 'select', 'textarea'])
 
         # --- try to restore saved progress ---
         # placeholder until client connects
@@ -390,7 +420,24 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
             quiz.question = "Press ▶️ Start Quiz to begin"
             quiz.update_ui()
 
-        with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12"):
+        with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12") as quiz_layout:
+            # Capture Enter on focused keypad buttons before it can click them.
+            # Elsewhere, ui.keyboard handles Enter normally.
+            quiz_layout.on('keydown.capture', lambda e: handle_quiz_key(quiz, 'Enter'), js_handler='''(e) => {
+                if (e.key === 'Enter' && e.target.closest('button') &&
+                    !e.target.closest('[data-quiz-start]')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) emit({});
+                }
+            }''')
+            quiz_layout.on('keyup.capture', js_handler='''(e) => {
+                if (e.key === 'Enter' && e.target.closest('button') &&
+                    !e.target.closest('[data-quiz-start]')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }''')
             with ui.column().classes("items-start"):
                 ui.label(f"Math Quiz for {name.capitalize()}").classes(
                     "text-3xl font-bold mb-6"
@@ -399,9 +446,21 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                 quiz.progress_label = ui.label("").classes("text-xl mb-2")
                 quiz.feedback_label = ui.label("").classes("text-xl mb-2")
                 quiz.question_label = ui.label("").classes("text-2xl mb-2 max-w-xl whitespace-normal")
-                quiz.answer_label = ui.label("").classes(
-                    "text-2xl font-mono mb-4 h-8"
-                )
+                quiz.answer_label = ui.input('Your answer').bind_value(quiz, 'input_text').props(
+                    'outlined autocomplete=off'
+                ).classes('text-2xl font-mono mb-4 w-64')
+                quiz.answer_label.disable()
+                # Handle keys directly on the input; the global listener ignores inputs.
+                quiz.answer_label.on('keydown', lambda e: handle_quiz_key(quiz, e.args['key']),
+                                     js_handler='''(e) => {
+                    if (!e.ctrlKey && !e.altKey && !e.metaKey &&
+                        ['Enter', 'Escape', 'Delete'].includes(e.key)) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!e.repeat) emit({key: e.key});
+                    }
+                }''')
+                ui.label('Type your answer • Enter: submit • Backspace: erase • Esc: clear').classes('text-sm mb-2')
 
                 # ✅ Keypad now evenly aligned and centered
                 keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90")
@@ -433,7 +492,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 
                 quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start()).classes(
                     "bg-green-600 text-white text-lg p-3 rounded-xl mt-6"
-                )
+                ).props('data-quiz-start')
 
             # Right column for plot
             with ui.column().classes("items-start justify-start"):
@@ -447,7 +506,8 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 # ---------- REGISTER QUIZ PAGES ----------
 # make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
 make_quiz_page(15, "autumn", ["slope", "lcm", "gcf"])
-make_quiz_page(20, "molly", ["+", "-", "*"], multiplication_range=(1, 5))
+# Repeating multiplication gives it a 50% chance; addition and subtraction each get 25%.
+make_quiz_page(20, "molly", ["+", "-", "*", "*"], multiplication_range=(1, 5))
 
 
 # ---------- ROOT PAGE ----------
