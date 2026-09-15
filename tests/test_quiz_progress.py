@@ -42,6 +42,28 @@ class QuizProgressTests(unittest.TestCase):
         self.assertEqual(restored.solution, quiz.solution)
         self.assertEqual(restored.start_time, quiz.start_time)
 
+    def test_lcm_and_gcf_can_be_restored_and_answered(self):
+        for op in ('lcm', 'gcf'):
+            for a, b, lcm, gcf in ((12, 18, 36, 6), (10, 100, 100, 10), (97, 100, 9700, 1), (10, 10, 10, 10)):
+                with self.subTest(op=op, a=a, b=b):
+                    expected = lcm if op == 'lcm' else gcf
+                    quiz = self.quiz(ops=[op])
+                    with patch('handlers.common_multiples.random.randint', side_effect=[a, b]):
+                        quiz.start()
+                    self.assertEqual(quiz.solution, expected)
+                    self.assertIn(str(a), quiz.question)
+                    self.assertIn(str(b), quiz.question)
+                    restored = self.quiz(ops=[op])
+                    restored.restore_progress(self.storage['test'])
+                    self.assertEqual(restored.question, quiz.question)
+                    # Reject a non-least multiple or a non-greatest common factor.
+                    restored.input_text = str(expected * 2 if op == 'lcm' else (1 if expected > 1 else 2))
+                    restored.check_answer()
+                    self.assertFalse(restored.answer_pending)
+                    self.assertEqual(restored.wrong, 1)
+                    self.answer_correctly(restored)
+                    self.assertTrue(restored.answer_pending)
+
     def test_refresh_during_correct_feedback_advances_once(self):
         quiz = self.quiz()
         quiz.start()
@@ -53,6 +75,94 @@ class QuizProgressTests(unittest.TestCase):
         self.assertFalse(self.storage['test']['answer_pending'])
         restored.advance_problem()
         self.assertEqual(restored.current_index, 1)
+
+    def gift_bag_quiz(self):
+        import handlers.common_multiples as common
+        quiz = self.quiz(total=1, ops=['gcf'])
+        with patch.object(common, 'GCF_STORIES', (common.GCF_STORIES[0],)), \
+                patch.object(common.random, 'randint', side_effect=[20, 42]):
+            quiz.start()
+        return quiz
+
+    def test_every_story_has_follow_ups_and_finishes_after_refresh(self):
+        import handlers.common_multiples as common
+        for op, stories, answers in (
+            ('lcm', common.LCM_STORIES, (420, 21, 10)),
+            ('gcf', common.GCF_STORIES, (2, 10, 21)),
+        ):
+            for story in stories:
+                with self.subTest(op=op, story=story):
+                    quiz = self.quiz(total=1, ops=[op])
+                    with patch.object(common.random, 'choice', side_effect=[op, story]), \
+                            patch.object(common.random, 'randint', side_effect=[20, 42]):
+                        quiz.start()
+                    self.assertEqual(len(quiz.follow_up_questions), 2)
+                    for answer in answers:
+                        self.assertEqual(quiz.solution, answer)
+                        self.assertEqual(quiz.current_index, 0)
+                        self.answer_correctly(quiz)
+                        restored = self.quiz(total=1, ops=[op])
+                        with patch.object(os, 'makedirs'), patch('builtins.open', create=True):
+                            restored.restore_progress(copy.deepcopy(self.storage['test']))
+                        quiz = restored
+                    self.assertEqual(quiz.current_index, 1)
+                    self.assertIn('Finished!', quiz.question)
+                    self.assertNotIn('test', self.storage)
+
+    def test_old_saved_stories_get_follow_ups(self):
+        import handlers.common_multiples as common
+        for op, stories, answer, follow_answers in (
+            ('lcm', common.LCM_STORIES, 288, [3, 4]),
+            ('gcf', common.GCF_STORIES, 24, [4, 3]),
+        ):
+            for story in stories:
+                for pending in (False, True):
+                    with self.subTest(op=op, story=story, pending=pending):
+                        quiz = self.quiz(ops=[op])
+                        quiz.restore_progress({
+                            'question': story.format(a=96, b=72),
+                            'solution': str(answer), 'symbol': op,
+                            'follow_up_questions': [], 'answer_pending': pending,
+                        })
+                        if pending:
+                            self.assertEqual(quiz.solution, follow_answers[0])
+                            self.assertEqual(len(quiz.follow_up_questions), 1)
+                        else:
+                            self.assertEqual([q['solution'] for q in quiz.follow_up_questions], follow_answers)
+                        self.assertEqual(quiz.current_index, 0)
+
+    def test_gift_bag_follow_ups_count_as_one_problem(self):
+        quiz = self.gift_bag_quiz()
+        for answer, text in ((2, 'greatest number of bags'), (10, 'How many pencils'), (21, 'How many erasers')):
+            self.assertEqual(quiz.solution, answer)
+            self.assertIn(text, quiz.question)
+            self.assertEqual(quiz.current_index, 0)
+            self.answer_correctly(quiz)
+            with patch.object(os, 'makedirs'), patch('builtins.open', create=True):
+                quiz.advance_problem()
+        self.assertEqual(quiz.current_index, 1)
+        self.assertIn('Finished!', quiz.question)
+        self.assertNotIn('test', self.storage)
+
+    def test_follow_ups_survive_refresh_before_and_after_advance(self):
+        import json
+        quiz = self.gift_bag_quiz()
+        self.answer_correctly(quiz)
+        restored = self.quiz(total=1, ops=['gcf'])
+        restored.restore_progress(json.loads(json.dumps(self.storage['test'])))
+        self.assertEqual(restored.solution, 10)
+        self.assertEqual(restored.current_index, 0)
+        again = self.quiz(total=1, ops=['gcf'])
+        again.restore_progress(json.loads(json.dumps(self.storage['test'])))
+        self.assertEqual(again.question, restored.question)
+        again.input_text = '11'
+        again.check_answer()
+        self.assertEqual(again.wrong, 1)
+        self.assertEqual(again.solution, 10)
+        self.answer_correctly(again)
+        again.advance_problem()
+        self.assertEqual(again.solution, 21)
+        self.assertEqual(again.current_index, 0)
 
     def test_delayed_advance_saves_new_question_and_blocks_double_submit(self):
         quiz = self.quiz()

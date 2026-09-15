@@ -20,6 +20,7 @@ class MathQuizGame:
         self.wrong = 0
         self.start_time = None
         self.answer_pending = False
+        self.follow_up_questions = []
         self.slope_points = None
 
         self.question = ""
@@ -65,6 +66,7 @@ class MathQuizGame:
             self.start_button.update()
 
     def generate_problem(self):
+        self.follow_up_questions = []
         self.symbol = random.choice(self.allowed_ops)
         self.solution = None
         self.question = ""
@@ -246,9 +248,16 @@ class MathQuizGame:
         if not self.answer_pending:
             return
         self.answer_pending = False
-        self.current_index += 1
         self.input_text = ""
         self.feedback = ""
+        if self.follow_up_questions:
+            follow_up = self.follow_up_questions.pop(0)
+            self.question = follow_up["question"]
+            self.solution = follow_up["solution"]
+            self.save_progress()
+            self.update_ui()
+            return
+        self.current_index += 1
         if self.current_index < self.total_problems:
             self.generate_problem()
             self.save_progress()
@@ -266,6 +275,7 @@ class MathQuizGame:
             "start_time": self.start_time,
             "answer_pending": self.answer_pending,
             "slope_points": self.slope_points,
+            "follow_up_questions": list(self.follow_up_questions),
         }
 
     def restore_progress(self, saved):
@@ -278,6 +288,9 @@ class MathQuizGame:
         self.start_time = saved.get("start_time") or time.time()
         self.answer_pending = saved.get("answer_pending", False)
         self.slope_points = saved.get("slope_points")
+        self.follow_up_questions = list(saved.get("follow_up_questions", []))
+        if self.symbol in ('lcm', 'gcf') and not self.follow_up_questions:
+            handlers.common_multiples.restore_follow_ups(self)
         if self.answer_pending:
             self.advance_problem()
             return
@@ -385,7 +398,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 
                 quiz.progress_label = ui.label("").classes("text-xl mb-2")
                 quiz.feedback_label = ui.label("").classes("text-xl mb-2")
-                quiz.question_label = ui.label("").classes("text-2xl mb-2")
+                quiz.question_label = ui.label("").classes("text-2xl mb-2 max-w-xl whitespace-normal")
                 quiz.answer_label = ui.label("").classes(
                     "text-2xl font-mono mb-4 h-8"
                 )
@@ -433,7 +446,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 
 # ---------- REGISTER QUIZ PAGES ----------
 # make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
-make_quiz_page(15, "autumn", ["slope"])
+make_quiz_page(15, "autumn", ["slope", "lcm", "gcf"])
 make_quiz_page(20, "molly", ["+", "-", "*"], multiplication_range=(1, 5))
 
 

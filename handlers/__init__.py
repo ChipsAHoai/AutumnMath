@@ -1,6 +1,9 @@
 from . import arithmetic, fraction, alg, mix, multi_alg, parens, decimal_multi_div, slope, ruler, cm_ruler
+from . import common_multiples
 
 registry = {
+    "lcm": common_multiples.lcm,
+    "gcf": common_multiples.gcf,
     "+": arithmetic.plus,
     "-": arithmetic.minus,
     "x": arithmetic.times,
