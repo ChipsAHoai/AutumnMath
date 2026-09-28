@@ -2,12 +2,10 @@ import os
 import random
 import time
 import math
-import inspect
 from fractions import Fraction
 import handlers
 import matplotlib.pyplot as plt
 from nicegui import ui, app
-from scratchpad import Scratchpad
 
 
 # ---------- BASE QUIZ CLASS ----------
@@ -22,7 +20,6 @@ class MathQuizGame:
         self.wrong = 0
         self.start_time = None
         self.answer_pending = False
-        self.follow_up_questions = []
         self.slope_points = None
 
         self.question = ""
@@ -68,7 +65,6 @@ class MathQuizGame:
             self.start_button.update()
 
     def generate_problem(self):
-        self.follow_up_questions = []
         self.symbol = random.choice(self.allowed_ops)
         self.solution = None
         self.question = ""
@@ -250,16 +246,9 @@ class MathQuizGame:
         if not self.answer_pending:
             return
         self.answer_pending = False
+        self.current_index += 1
         self.input_text = ""
         self.feedback = ""
-        if self.follow_up_questions:
-            follow_up = self.follow_up_questions.pop(0)
-            self.question = follow_up["question"]
-            self.solution = follow_up["solution"]
-            self.save_progress()
-            self.update_ui()
-            return
-        self.current_index += 1
         if self.current_index < self.total_problems:
             self.generate_problem()
             self.save_progress()
@@ -277,7 +266,6 @@ class MathQuizGame:
             "start_time": self.start_time,
             "answer_pending": self.answer_pending,
             "slope_points": self.slope_points,
-            "follow_up_questions": list(self.follow_up_questions),
         }
 
     def restore_progress(self, saved):
@@ -290,9 +278,6 @@ class MathQuizGame:
         self.start_time = saved.get("start_time") or time.time()
         self.answer_pending = saved.get("answer_pending", False)
         self.slope_points = saved.get("slope_points")
-        self.follow_up_questions = list(saved.get("follow_up_questions", []))
-        if self.symbol in ('lcm', 'gcf') and not self.follow_up_questions:
-            handlers.common_multiples.restore_follow_ups(self)
         if self.answer_pending:
             self.advance_problem()
             return
@@ -327,14 +312,7 @@ class MathQuizGame:
             self.progress_label.set_text(
                 f"{self.current_index} out of {self.total_problems}")
         if self.question_label:
-            displayed_question = handlers.arithmetic.vertical_question(self.question)
-            if displayed_question != self.question:
-                self.question_label.classes(add='font-mono whitespace-pre text-4xl',
-                                            remove='whitespace-normal text-2xl')
-            else:
-                self.question_label.classes(add='whitespace-normal text-2xl',
-                                            remove='font-mono whitespace-pre text-4xl')
-            self.question_label.set_text(displayed_question)
+            self.question_label.set_text(self.question)
         if self.feedback_label:
             self.feedback_label.set_text(self.feedback)
             if self.feedback_color:
@@ -342,11 +320,7 @@ class MathQuizGame:
             else:
                 self.feedback_label.style("")  # reset to default
         if self.answer_label:
-            self.answer_label.set_value(self.input_text)
-            active = self.start_time is not None and self.current_index < self.total_problems and not self.answer_pending
-            self.answer_label.set_enabled(active)
-            if active:
-                self.answer_label.run_method('focus')
+            self.answer_label.set_text(self.input_text)
         if self.svg_container:
             self.svg_container.set_content(self.question_svg or "")
 
@@ -357,54 +331,21 @@ def add_char(quiz: MathQuizGame, ch: str):
         return
     quiz.input_text += ch
     if quiz.answer_label:
-        quiz.answer_label.set_value(quiz.input_text)
+        quiz.answer_label.set_text(quiz.input_text)
 
 
 def clear_input(quiz: MathQuizGame):
     quiz.input_text = ""
     if quiz.answer_label:
-        quiz.answer_label.set_value("")
-
-
-def handle_quiz_key(quiz: MathQuizGame, key: str):
-    if quiz.answer_pending or quiz.start_time is None or quiz.current_index >= quiz.total_problems:
-        return
-    if key in "0123456789.-/" and len(key) == 1:
-        add_char(quiz, key)
-    elif key == "Enter":
-        if quiz.input_text.strip():
-            quiz.check_answer()
-    elif key == "Backspace":
-        quiz.input_text = quiz.input_text[:-1]
-        if quiz.answer_label:
-            quiz.answer_label.set_value(quiz.input_text)
-    elif key in ("Escape", "Delete"):
-        clear_input(quiz)
-
-
-def handle_keyboard_event(quiz: MathQuizGame, event):
-    if not event.action.keydown or event.action.repeat:
-        return
-    if event.modifiers.ctrl or event.modifiers.alt or event.modifiers.meta:
-        return
-    handle_quiz_key(quiz, event.key.name)
+        quiz.answer_label.set_text("")
 
 
 # ---------- PAGE FACTORY ----------
-def create_svg_container():
-    # NiceGUI 2.x rejects sanitize; NiceGUI 3.x requires it.
-    # This container only displays SVG generated by our ruler handlers.
-    options = {'sanitize': False} if 'sanitize' in inspect.signature(ui.html).parameters else {}
-    return ui.html('', **options).classes('w-[520px] h-[140px]')
-
-
 def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_range=(3, 12)):
     @ui.page(f'/{name}', dark=True)
     def page():
         quiz = MathQuizGame(total_problems=total_problems,
                             allowed_ops=ops, name=name, multiplication_range=multiplication_range)
-        ui.keyboard(on_key=lambda e: handle_keyboard_event(quiz, e), repeating=False,
-                    ignore=['input', 'select', 'textarea'])
 
         # --- try to restore saved progress ---
         # placeholder until client connects
@@ -436,24 +377,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
             quiz.question = "Press ▶️ Start Quiz to begin"
             quiz.update_ui()
 
-        with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12") as quiz_layout:
-            # Capture Enter on focused keypad buttons before it can click them.
-            # Elsewhere, ui.keyboard handles Enter normally.
-            quiz_layout.on('keydown.capture', lambda e: handle_quiz_key(quiz, 'Enter'), js_handler='''(e) => {
-                if (e.key === 'Enter' && e.target.closest('button') &&
-                    e.target.closest('[data-quiz-keypad]')) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (!e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) emit({});
-                }
-            }''')
-            quiz_layout.on('keyup.capture', js_handler='''(e) => {
-                if (e.key === 'Enter' && e.target.closest('button') &&
-                    e.target.closest('[data-quiz-keypad]')) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            }''')
+        with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12"):
             with ui.column().classes("items-start"):
                 ui.label(f"Math Quiz for {name.capitalize()}").classes(
                     "text-3xl font-bold mb-6"
@@ -462,24 +386,12 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                 quiz.progress_label = ui.label("").classes("text-xl mb-2")
                 quiz.feedback_label = ui.label("").classes("text-xl mb-2")
                 quiz.question_label = ui.label("").classes("text-2xl mb-2 max-w-xl whitespace-normal")
-                quiz.answer_label = ui.input('Your answer').bind_value(quiz, 'input_text').props(
-                    'outlined autocomplete=off'
-                ).classes('text-2xl font-mono mb-4 w-64')
-                quiz.answer_label.disable()
-                # Handle keys directly on the input; the global listener ignores inputs.
-                quiz.answer_label.on('keydown', lambda e: handle_quiz_key(quiz, e.args['key']),
-                                     js_handler='''(e) => {
-                    if (!e.ctrlKey && !e.altKey && !e.metaKey &&
-                        ['Enter', 'Escape', 'Delete'].includes(e.key)) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!e.repeat) emit({key: e.key});
-                    }
-                }''')
-                ui.label('Type your answer • Enter: submit • Backspace: erase • Esc: clear').classes('text-sm mb-2')
+                quiz.answer_label = ui.label("").classes(
+                    "text-2xl font-mono mb-4 h-8"
+                )
 
                 # ✅ Keypad now evenly aligned and centered
-                keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90").props('data-quiz-keypad')
+                keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90")
                 with keypad_col:
                     for row in [
                         ["1", "2", "3"],
@@ -508,12 +420,11 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 
                 quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start()).classes(
                     "bg-green-600 text-white text-lg p-3 rounded-xl mt-6"
-                ).props('data-quiz-start')
+                )
 
-            # Scratch work stays visible while moving through follow-up questions.
-            with ui.column().classes("items-start justify-start w-full min-w-0").style('flex: 1 1 520px; max-width: 900px'):
-                Scratchpad().classes('w-full')
-                quiz.svg_container = create_svg_container()
+            # Right column for plot
+            with ui.column().classes("items-start justify-start"):
+                quiz.svg_container = ui.html("", sanitize=False).classes("w-[520px] h-[140px]")
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
 
         ui.timer(0.1, restore_progress, once=True)
@@ -522,9 +433,8 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 
 # ---------- REGISTER QUIZ PAGES ----------
 # make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
-make_quiz_page(15, "autumn", ["slope", "lcm", "gcf"])
-# Repeating multiplication gives it a 50% chance; addition and subtraction each get 25%.
-make_quiz_page(20, "molly", ["+", "-", "*", "*"], multiplication_range=(1, 5))
+make_quiz_page(15, "autumn", ["lcm", "gcf"])
+make_quiz_page(15, "molly", ["+", "-", "*", "*"], multiplication_range=(3, 7))
 
 
 # ---------- ROOT PAGE ----------
