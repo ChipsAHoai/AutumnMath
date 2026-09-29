@@ -2,6 +2,7 @@ import os
 import random
 import time
 import math
+import inspect
 from fractions import Fraction
 import handlers
 import matplotlib.pyplot as plt
@@ -341,6 +342,11 @@ def clear_input(quiz: MathQuizGame):
 
 
 # ---------- PAGE FACTORY ----------
+def create_svg_container():
+    options = {'sanitize': False} if 'sanitize' in inspect.signature(ui.html).parameters else {}
+    return ui.html('', **options).classes('w-[520px] h-[140px]')
+
+
 def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_range=(3, 12)):
     @ui.page(f'/{name}', dark=True)
     def page():
@@ -424,7 +430,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 
             # Right column for plot
             with ui.column().classes("items-start justify-start"):
-                quiz.svg_container = ui.html("", sanitize=False).classes("w-[520px] h-[140px]")
+                quiz.svg_container = create_svg_container()
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
 
         ui.timer(0.1, restore_progress, once=True)
