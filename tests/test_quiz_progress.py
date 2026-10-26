@@ -1,8 +1,10 @@
 import copy
+import json
 import math
 import os
 from pathlib import Path
 import runpy
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -58,9 +60,13 @@ class QuizProgressTests(unittest.TestCase):
     def setUp(self):
         self.storage = {}
         self.ui = SimpleNamespace(notify=Mock(), timer=Mock())
+        stats_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(stats_dir.cleanup)
+        self.stats_path = Path(stats_dir.name) / 'data' / 'stats.json'
         self.globals_patch = patch.dict(MathQuizGame.start.__globals__, {
             'app': SimpleNamespace(storage=SimpleNamespace(user=self.storage)),
             'ui': self.ui,
+            'STATS_PATH': self.stats_path,
         })
         self.globals_patch.start()
         self.addCleanup(self.globals_patch.stop)
@@ -540,6 +546,78 @@ class QuizProgressTests(unittest.TestCase):
         quiz.start()
         self.assertEqual((quiz.life, quiz.wrong, quiz.current_index), (10, 0, 0))
         self.assertFalse(quiz.end_card.visible)
+
+    def win_quiz(self, quiz=None):
+        quiz = quiz or self.quiz(total=1, ops=['*'])
+        quiz.start()
+        self.answer_correctly(quiz)
+        with patch.object(os, 'makedirs'), patch('builtins.open', create=True):
+            quiz.advance_problem()
+        return quiz
+
+    def test_seven_wins_earn_a_treat(self):
+        record = MathQuizGame.start.__globals__['record_result']
+        for win in range(1, 7):
+            self.win_quiz()
+            self.assertEqual(MathQuizGame.start.__globals__['kid_stats']('test')['streak'], win)
+        quiz = self.quiz(total=1, ops=['*'])
+        quiz.end_card = SimpleNamespace(visible=False)
+        quiz.end_title_label, quiz.end_avatar_label, quiz.end_stars_label = Mock(), Mock(), Mock()
+        quiz.end_details_label, quiz.end_message_label = Mock(), Mock()
+        self.win_quiz(quiz)
+        quiz.end_title_label.set_text.assert_called_with('🎁 FREE TREAT! 🎁')
+        stats = json.loads(self.stats_path.read_text())['test']
+        self.assertEqual((stats['wins'], stats['streak'], stats['treats']), (7, 0, 1))
+        # The next treat needs another 7 wins.
+        self.assertFalse(record('test', won=True)['treat'])
+
+    def test_treat_sends_one_email(self):
+        import notify
+        sent = []
+        with patch.object(notify, 'send_in_background', side_effect=lambda subject, body: sent.append(subject)):
+            for _ in range(7):
+                self.win_quiz()
+        self.assertEqual(sent, ['🎁 Test earned free treat #1!'])
+
+    def test_email_uses_gmail_settings_and_is_skipped_when_not_set(self):
+        import notify
+        with patch.dict(os.environ, {}, clear=True), patch.object(notify.smtplib, 'SMTP') as smtp:
+            self.assertFalse(notify.send_email('hi', 'there'))
+            smtp.assert_not_called()
+        settings = {'NOTIFY_EMAIL_TO': 'parent@example.com', 'SMTP_USER': 'me@gmail.com', 'SMTP_PASSWORD': 'app-pass'}
+        with patch.dict(os.environ, settings, clear=True), patch.object(notify.smtplib, 'SMTP') as smtp:
+            self.assertTrue(notify.send_email('🎁 Treat!', 'body'))
+            smtp.assert_called_once_with('smtp.gmail.com', 587, timeout=20)
+            server = smtp.return_value.__enter__.return_value
+            server.login.assert_called_once_with('me@gmail.com', 'app-pass')
+            message = server.send_message.call_args.args[0]
+            self.assertEqual((message['To'], message['Subject']), ('parent@example.com', '🎁 Treat!'))
+
+    def test_game_over_keeps_wins_toward_a_treat(self):
+        for _ in range(3):
+            self.win_quiz()
+        quiz = self.quiz(total=15, ops=['*'])
+        quiz.start()
+        with patch.object(os, 'makedirs'), patch('builtins.open', create=True):
+            for _ in range(5):
+                quiz.input_text = str(quiz.solution + 1)
+                quiz.check_answer()
+        stats = json.loads(self.stats_path.read_text())['test']
+        self.assertEqual((stats['wins'], stats['streak'], stats['games_over']), (3, 3, 1))
+        for _ in range(4):
+            self.win_quiz()
+        stats = json.loads(self.stats_path.read_text())['test']
+        self.assertEqual((stats['wins'], stats['streak'], stats['treats']), (7, 0, 1))
+
+    def test_treat_progress_banner(self):
+        progress = MathQuizGame.start.__globals__['treat_progress']
+        self.assertEqual(progress({'streak': 3}), '3 of 7 wins · 4 more to the castle 🎁')
+        import xml.dom.minidom
+        road = MathQuizGame.start.__globals__['castle_road_svg']
+        for wins in range(7):
+            svg = road(wins, '🦄')
+            xml.dom.minidom.parseString(svg)
+            self.assertEqual(svg.count('fill="#facc15"'), wins)  # one gold stone per win
 
     def test_finishing_shows_end_card_with_stars(self):
         quiz = self.quiz(total=1)

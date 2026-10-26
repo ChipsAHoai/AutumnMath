@@ -1,13 +1,17 @@
+import json
 import os
 import random
 import time
 import math
 import inspect
 from fractions import Fraction
+from pathlib import Path
 import handlers
 import matplotlib.pyplot as plt
+from fastapi import FastAPI
 from nicegui import ui, app
 from scratchpad import Scratchpad
+import notify
 
 
 # ---------- KID-FRIENDLY HELPERS ----------
@@ -75,6 +79,89 @@ BATTLE_CSS = '''
 .defeated { animation: knocked-out 0.6s ease-in 0.3s forwards; }
 .pop-in { animation: pop-in 0.45s ease-out; }
 '''
+
+# ---------- WIN STREAK & TREATS ----------
+# Kept on the server (not in each browser) so every device counts toward the same streak.
+# data/ is git-ignored, so deploys never overwrite it.
+STATS_PATH = Path("data") / "stats.json"
+WINS_FOR_TREAT = 7
+
+
+def load_stats() -> dict:
+    try:
+        return json.loads(STATS_PATH.read_text())
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def kid_stats(name: str) -> dict:
+    return {"wins": 0, "streak": 0, "games_over": 0, "treats": 0, **load_stats().get(name, {})}
+
+
+def record_result(name: str, won: bool) -> dict:
+    """Count a finished quiz or a game over. Every WINS_FOR_TREAT wins earns a treat.
+    Returns the kid's stats, with "treat" True when one was just earned. ("streak" is wins since the last treat.)"""
+    stats = load_stats()
+    kid = {"wins": 0, "streak": 0, "games_over": 0, "treats": 0, **stats.get(name, {})}
+    earned = False
+    if won:
+        kid["wins"] += 1
+        kid["streak"] += 1
+        if kid["streak"] >= WINS_FOR_TREAT:
+            earned = True
+            kid["treats"] += 1
+            kid["streak"] = 0
+            kid["last_treat"] = time.strftime("%B %-d, %Y")
+    else:
+        kid["games_over"] += 1  # a game over only restarts that game; wins toward a treat are kept
+    stats[name] = kid
+    STATS_PATH.parent.mkdir(exist_ok=True)
+    temp = STATS_PATH.with_suffix(".tmp")
+    temp.write_text(json.dumps(stats, indent=2))
+    temp.replace(STATS_PATH)  # never leave a half-written file behind
+    return {**kid, "treat": earned}
+
+
+def treat_progress(kid: dict) -> str:
+    left = WINS_FOR_TREAT - kid["streak"]
+    return f"{kid['streak']} of {WINS_FOR_TREAT} wins · {left} more to the castle 🎁"
+
+
+def castle_road_svg(wins: int, avatar: str) -> str:
+    """A winding road from the start flag to a treat castle; the avatar stands on the stone for each win."""
+    width, height = 440, 130
+    # Stop 0 is the start, stops 1-6 are stones, stop 7 is the castle.
+    stops = [(36 + i * (370 / WINS_FOR_TREAT), 78 - 16 * math.sin(i * 1.1)) for i in range(WINS_FOR_TREAT + 1)]
+    road = " ".join(f"{x:.0f},{y:.0f}" for x, y in stops)
+    parts = [
+        f'<svg viewBox="0 0 {width} {height}" width="100%" xmlns="http://www.w3.org/2000/svg" role="img">',
+        f'<title>{treat_progress({"streak": wins})}</title>',
+        f'<rect width="{width}" height="{height}" rx="16" fill="#bae6fd" />',
+        f'<rect y="{height * 0.45:.0f}" width="{width}" height="{height * 0.55:.0f}" rx="16" fill="#86efac" />',
+        f'<polyline points="{road}" fill="none" stroke="#d6b37a" stroke-width="16" '
+        'stroke-linecap="round" stroke-linejoin="round" />',
+        f'<text x="{stops[0][0]:.0f}" y="{stops[0][1] + 8:.0f}" font-size="20" text-anchor="middle">🚩</text>',
+    ]
+    for i, (x, y) in enumerate(stops[1:WINS_FOR_TREAT], start=1):
+        done = i <= wins
+        parts.append(f'<circle cx="{x:.0f}" cy="{y:.0f}" r="10" fill="{"#facc15" if done else "#f3f4f6"}" '
+                     'stroke="#92400e" stroke-width="2" />')
+        parts.append(f'<text x="{x:.0f}" y="{y + 4:.0f}" font-size="11" font-weight="bold" text-anchor="middle" '
+                     f'font-family="sans-serif" fill="#78350f">{i}</text>')
+    castle_x, castle_y = stops[-1]
+    parts += [
+        f'<text x="{castle_x:.0f}" y="{castle_y + 10:.0f}" font-size="44" text-anchor="middle">🏰</text>',
+        f'<text x="{castle_x + 18:.0f}" y="{castle_y - 26:.0f}" font-size="20" text-anchor="middle">🎁</text>',
+    ]
+    avatar_x, avatar_y = stops[wins]
+    parts += [
+        f'<text x="{avatar_x:.0f}" y="{avatar_y - 14:.0f}" font-size="30" text-anchor="middle">{avatar}</text>',
+        f'<text x="{width / 2:.0f}" y="{height - 10}" font-size="15" font-weight="bold" text-anchor="middle" '
+        f'font-family="sans-serif" fill="#14532d">{treat_progress({"streak": wins})}</text>',
+        "</svg>",
+    ]
+    return "".join(parts)
+
 
 END_MESSAGES = {3: "Perfect! Not a single miss!", 2: "Awesome work!", 1: "Great practice! Keep going!"}
 
@@ -161,6 +248,7 @@ class MathQuizGame:
         self.enemy_label = None
         self.enemy_hp_label = None
         self.battle_dialog = None
+        self.treat_label = None
         self.battle_avatar_label = self.battle_enemy_label = None
         self.battle_caption_label = self.battle_status_label = None
         self.hint_button = None
@@ -585,17 +673,39 @@ class MathQuizGame:
         self.animate(self.enemy_label, "pop-in")  # the trophy replaces the knocked-out enemy
         self.celebrate()
         self.finish("🎉 Finished!", f"Time {total_time}s, Wrong {self.wrong}, Life {self.life}")
+        kid = record_result(self.name, won=True)
+        self.update_treat_label(kid)
+        if kid["treat"]:
+            notify.send_in_background(
+                f"🎁 {self.name.capitalize()} earned free treat #{kid['treats']}!",
+                f"{self.name.capitalize()} reached the castle on {kid['last_treat']}: "
+                f"{WINS_FOR_TREAT} more math games won ({kid['wins']} in total).\n\n"
+                f"Last game: {format_duration(total_time)}, {self.wrong} misses, {self.life} hearts left.\n\n"
+                "They'll be showing you their treat screen soon! 🍦🧋🍩")
+            self.show_end_card(
+                "🎁 FREE TREAT! 🎁", "🍦🧋🍩",
+                f"{WINS_FOR_TREAT} wins! Treat #{kid['treats']} earned {kid['last_treat']}.",
+                "Show this screen to get any treat you want: ice cream, boba, anything yummy!",
+                "🔁 Play again")
+            return
         stars = star_rating(self.wrong)
         self.show_end_card("🎉 You did it!", "⭐" * stars,
                            f"Time: {format_duration(total_time)} • Misses: {self.wrong} • ❤️ {self.life} left",
-                           END_MESSAGES[stars], "🔁 Play again")
+                           f"{END_MESSAGES[stars]} {WINS_FOR_TREAT - kid['streak']} more wins for a free treat! 🍦",
+                           "🔁 Play again")
 
     def game_over(self):
         self.finish("💀 Game over!", f"Game over: beat {self.defeated} of {self.total_problems}, Wrong {self.wrong}")
+        kid = record_result(self.name, won=False)
+        self.update_treat_label(kid)
         self.show_end_card("💀 Game over!", "😵",
                            f"You beat {self.defeated} of {self.total_problems} enemies. "
                            f"The {self.enemy} got you this time.",
-                           "Try again! You've got this! 💪", "🔁 Try again")
+                           f"Try again! Your {kid['streak']} of {WINS_FOR_TREAT} wins are safe. 💪", "🔁 Try again")
+
+    def update_treat_label(self, kid=None):
+        if self.treat_label:
+            self.treat_label.set_content(castle_road_svg((kid or kid_stats(self.name))["streak"], get_avatar(self.name)))
 
     def update_ui(self):
         if self.progress_label:
@@ -750,7 +860,10 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                 }
             }''')
             with ui.column().classes("items-start"):
-                ui.label(f"{name.capitalize()}'s Math Adventure").classes("text-3xl font-bold mb-4")
+                ui.label(f"{name.capitalize()}'s Math Adventure").classes("text-3xl font-bold mb-2")
+                # Road to the treat castle up top, to keep them going for 7 wins.
+                quiz.treat_label = create_svg_container("w-[440px] mb-4")
+                quiz.update_treat_label()
 
                 # Battle arena: your avatar and hearts vs. this problem's enemy and its health.
                 # Sticky so the fight stays in view when the page scrolls to the answer box.
@@ -767,6 +880,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                 def pick_avatar(avatar):
                     set_avatar(name, avatar)
                     quiz.avatar_label.set_text(avatar)
+                    quiz.update_treat_label()
                     quiz.celebrate()
 
                 quiz.progress_label = ui.label("").classes("text-xl")
@@ -886,13 +1000,25 @@ def root_page():
         with ui.row().classes("gap-8 justify-center"):
             for name, kid in KIDS.items():
                 with ui.card().classes(
-                    f"items-center p-8 rounded-3xl cursor-pointer bg-gradient-to-br {kid['gradient']} "
-                    "text-white w-64 hover:scale-105 transition-transform"
+                    f"items-center p-5 rounded-3xl cursor-pointer bg-gradient-to-br {kid['gradient']} "
+                    "text-white w-96 max-w-full hover:scale-105 transition-transform"
                 ).on('click', lambda _, n=name: ui.navigate.to(f'/{n}')):
                     ui.label(get_avatar(name)).classes("text-6xl")
                     ui.label(name.capitalize()).classes("text-2xl font-bold")
+                    stats = kid_stats(name)
+                    create_svg_container("w-full").set_content(castle_road_svg(stats["streak"], get_avatar(name)))
+                    if stats["treats"]:
+                        ui.label(f"🎁 {stats['treats']} treat{'s' if stats['treats'] > 1 else ''} earned").classes(
+                            "text-sm font-bold")
                     ui.label("Let's play! ▶️").classes("text-lg")
 
 ui.page('/',dark=True)(root_page)
-# Disable development file watching when running on the server.
-ui.run(storage_secret='super-secret-key', reload=False, show=False)
+# Two ways to start:
+#   python3 Autumn_Math_NiceGUI.py  -> NiceGUI's own server on port 8080 (what the server runs; nginx forwards to it)
+#   uvicorn Autumn_Math_NiceGUI:fastapi_app --host 0.0.0.0 --port 8000 --reload  -> for local development
+if __name__ == '__main__':
+    # Disable development file watching when running on the server.
+    ui.run(storage_secret='super-secret-key', reload=False, show=False)
+elif __name__ == 'Autumn_Math_NiceGUI':  # imported by uvicorn (tests load the file under another name)
+    fastapi_app = FastAPI()
+    ui.run_with(fastapi_app, storage_secret='super-secret-key')
