@@ -486,6 +486,61 @@ class QuizProgressTests(unittest.TestCase):
         svg = visuals.factor_venn_svg(64, 81)
         self.assertIn('only 1', svg)
 
+    def test_battle_misses_cost_two_hearts_and_hints_cost_one(self):
+        quiz = self.quiz(ops=['lcm'])
+        quiz.start()
+        self.assertEqual(quiz.life, 10)
+        self.assertEqual(quiz.enemy_hp, 3)  # the story plus two follow-ups
+        quiz.show_hint()
+        self.assertEqual((quiz.life, quiz.hint_level), (9, 1))
+        quiz.input_text = '0'
+        quiz.check_answer()
+        # The miss costs 2; the hint step it opens is free.
+        self.assertEqual((quiz.life, quiz.hint_level), (7, 2))
+        quiz.show_hint()
+        quiz.show_hint()  # already at the last hint step: no charge
+        self.assertEqual((quiz.life, quiz.hint_level), (6, 3))
+        restored = self.quiz(ops=['lcm'])
+        restored.restore_progress(copy.deepcopy(self.storage['test']))
+        self.assertEqual((restored.life, restored.enemy, restored.enemy_hp), (6, quiz.enemy, 3))
+
+    def test_correct_answers_hit_the_enemy_until_it_is_beaten(self):
+        quiz = self.gift_bag_quiz()
+        enemy = quiz.enemy
+        for hp_left in (2, 1, 0):
+            self.answer_correctly(quiz)
+            self.assertEqual(quiz.enemy, enemy)  # the same enemy through the follow-ups
+            self.assertEqual(quiz.enemy_hp, hp_left)
+            with patch.object(os, 'makedirs'), patch('builtins.open', create=True):
+                quiz.advance_problem()
+        self.assertEqual(quiz.defeated, 1)
+        self.assertEqual(quiz.life, 10)
+
+    def test_running_out_of_hearts_is_game_over(self):
+        quiz = self.quiz(total=15, ops=['*'])
+        quiz.start()
+        quiz.end_card = SimpleNamespace(visible=False)
+        quiz.end_title_label, quiz.end_avatar_label, quiz.end_stars_label = Mock(), Mock(), Mock()
+        quiz.end_details_label, quiz.end_message_label = Mock(), Mock()
+        with patch.object(os, 'makedirs'), patch('builtins.open', create=True) as scores:
+            for _ in range(5):
+                quiz.input_text = str(quiz.solution + 1)
+                quiz.check_answer()
+            scores.assert_called_once()
+        self.assertEqual(quiz.life, 0)
+        self.assertIn('Game over', quiz.question)
+        self.assertTrue(quiz.end_card.visible)
+        quiz.end_title_label.set_text.assert_called_with('💀 Game over!')
+        self.assertNotIn('test', self.storage)
+        # No more answers or hints once the game is over.
+        quiz.input_text = '1'
+        quiz.check_answer()
+        quiz.show_hint()
+        self.assertEqual((quiz.wrong, quiz.life), (5, 0))
+        quiz.start()
+        self.assertEqual((quiz.life, quiz.wrong, quiz.current_index), (10, 0, 0))
+        self.assertFalse(quiz.end_card.visible)
+
     def test_finishing_shows_end_card_with_stars(self):
         quiz = self.quiz(total=1)
         quiz.end_card = SimpleNamespace(visible=False)
