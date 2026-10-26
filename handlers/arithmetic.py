@@ -14,10 +14,23 @@ def vertical_question(question):
     return f"  {first:>{width}}\n{operator} {second:>{width}}\n{'─' * (width + 2)}"
 
 
+def restore_hint(quiz):
+    """Rebuild the picture hint for a question saved before hints existed."""
+    match = re.fullmatch(r"(\d+) ([+×-]) (\d+) = \?", quiz.question)
+    if not match:
+        return
+    x, operator, y = int(match[1]), match[2], int(match[3])
+    if operator == "×":
+        quiz.hint = {"kind": "dots", "a": x, "b": y}
+    else:
+        quiz.hint = {"kind": "blocks", "a": x, "b": y, "op": operator}
+
+
 def plus(quiz):
     x, y = random.randint(1, 100), random.randint(1, 100)
     quiz.solution = x + y
     quiz.question = f"{x} + {y} = ?"
+    quiz.hint = {"kind": "blocks", "a": x, "b": y, "op": "+"}
     quiz.clear_plot()
 
 
@@ -26,6 +39,7 @@ def minus(quiz):
     y = random.randint(1, x)
     quiz.solution = x - y
     quiz.question = f"{x} - {y} = ?"
+    quiz.hint = {"kind": "blocks", "a": x, "b": y, "op": "-"}
     quiz.clear_plot()
 
 
@@ -34,6 +48,7 @@ def times(quiz):
     x, y = random.randint(lower, upper), random.randint(lower, upper)
     quiz.solution = x * y
     quiz.question = f"{x} × {y} = ?"
+    quiz.hint = {"kind": "dots", "a": x, "b": y}
     quiz.clear_plot()
 
 

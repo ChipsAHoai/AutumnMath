@@ -7,6 +7,49 @@ from fractions import Fraction
 import handlers
 import matplotlib.pyplot as plt
 from nicegui import ui, app
+from scratchpad import Scratchpad
+
+
+# ---------- KID-FRIENDLY HELPERS ----------
+AVATARS = ["🦊", "🐼", "🦄", "🐸", "🐯", "🐙", "🚀", "🌟"]
+
+# Each kid's default avatar and card colors on the welcome page.
+KIDS = {
+    "autumn": {"avatar": "🦊", "gradient": "from-orange-400 to-pink-500"},
+    "molly": {"avatar": "🦄", "gradient": "from-purple-400 to-sky-500"},
+}
+
+END_MESSAGES = {3: "Perfect! Not a single miss!", 2: "Awesome work!", 1: "Great practice! Keep going!"}
+
+
+def get_avatar(name: str) -> str:
+    default = KIDS.get(name, {}).get("avatar", "🌟")
+    try:
+        return app.storage.user.get(f"avatar_{name}", default)
+    except RuntimeError:
+        return default
+
+
+def set_avatar(name: str, avatar: str):
+    app.storage.user[f"avatar_{name}"] = avatar
+
+
+def star_rating(wrong: int) -> int:
+    if wrong == 0:
+        return 3
+    if wrong <= 3:
+        return 2
+    return 1
+
+
+def format_duration(seconds: float) -> str:
+    minutes, secs = divmod(int(round(seconds)), 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{secs}s"
 
 
 # ---------- BASE QUIZ CLASS ----------
@@ -21,7 +64,10 @@ class MathQuizGame:
         self.wrong = 0
         self.start_time = None
         self.answer_pending = False
+        self.follow_up_questions = []
         self.slope_points = None
+        self.hint = None  # picture hint data, drawn by handlers.visuals
+        self.hint_level = 0  # how many hint steps are showing
 
         self.question = ""
         self.solution = None
@@ -46,6 +92,14 @@ class MathQuizGame:
         self.question_label = None
         self.feedback_label = None
         self.answer_label = None
+        self.progress_bar = None
+        self.hint_button = None
+        self.hint_container = None
+        self.end_card = None
+        self.end_avatar_label = None
+        self.end_stars_label = None
+        self.end_details_label = None
+        self.end_message_label = None
 
     def start(self):
         # Only reset if not continuing a restored quiz
@@ -60,12 +114,17 @@ class MathQuizGame:
             self.generate_problem()
             self.save_progress()
 
+        if self.end_card:
+            self.end_card.visible = False
         self.update_ui()
         if self.start_button and self.start_button.visible:
             self.start_button.visible = False
             self.start_button.update()
 
     def generate_problem(self):
+        self.follow_up_questions = []
+        self.hint = None
+        self.hint_level = 0
         self.symbol = random.choice(self.allowed_ops)
         self.solution = None
         self.question = ""
@@ -176,11 +235,13 @@ class MathQuizGame:
         if self.answer_pending or self.start_time is None or self.current_index >= self.total_problems:
             return
         user_input = self.input_text.strip()
+        if self.symbol == "percent":
+            user_input = user_input.replace("$", "").replace("%", "").replace(",", "")
         correct = False
         self.feedback_color = None
 
         try:
-            if self.symbol in ["fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"]:
+            if self.symbol in ["fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler", "percent"]:
                 if self.symbol == "ruler":
                     if "/" not in user_input:
                         raise ValueError("Fraction required for ruler")
@@ -238,18 +299,37 @@ class MathQuizGame:
         else:
             ui.notify(f"Try Again {self.name.capitalize()}!", type='negative')
             self.feedback = "❌ Try again!"
+            if self.hint:
+                self.feedback = "❌ Try again! Here's a hint to help 💡"
+                self.hint_level = min(self.hint_level + 1, handlers.visuals.hint_steps(self.hint))
             self.wrong += 1
             self.input_text = ""
             self.update_ui()
             self.save_progress()
 
+    def show_hint(self):
+        if not self.hint or self.answer_pending:
+            return
+        self.hint_level = min(self.hint_level + 1, handlers.visuals.hint_steps(self.hint))
+        self.save_progress()
+        self.update_ui()
+
     def advance_problem(self):
         if not self.answer_pending:
             return
         self.answer_pending = False
-        self.current_index += 1
         self.input_text = ""
         self.feedback = ""
+        if self.follow_up_questions:
+            follow_up = self.follow_up_questions.pop(0)
+            self.question = follow_up["question"]
+            solution = follow_up["solution"]
+            self.solution = Fraction(solution) if isinstance(solution, str) else solution
+            self.hint_level = 0
+            self.save_progress()
+            self.update_ui()
+            return
+        self.current_index += 1
         if self.current_index < self.total_problems:
             self.generate_problem()
             self.save_progress()
@@ -267,6 +347,9 @@ class MathQuizGame:
             "start_time": self.start_time,
             "answer_pending": self.answer_pending,
             "slope_points": self.slope_points,
+            "follow_up_questions": list(self.follow_up_questions),
+            "hint": self.hint,
+            "hint_level": self.hint_level,
         }
 
     def restore_progress(self, saved):
@@ -279,6 +362,17 @@ class MathQuizGame:
         self.start_time = saved.get("start_time") or time.time()
         self.answer_pending = saved.get("answer_pending", False)
         self.slope_points = saved.get("slope_points")
+        self.follow_up_questions = list(saved.get("follow_up_questions", []))
+        self.hint = saved.get("hint")
+        self.hint_level = saved.get("hint_level", 1 if saved.get("hint_shown") else 0)
+        if not self.hint:
+            # Saved before picture hints existed: rebuild one from the question text.
+            if self.symbol in ("+", "-", "*", "x"):
+                handlers.arithmetic.restore_hint(self)
+            elif self.symbol in ("lcm", "gcf"):
+                handlers.common_multiples.restore_hint(self)
+        if self.symbol in ('lcm', 'gcf') and not self.follow_up_questions:
+            handlers.common_multiples.restore_follow_ups(self)
         if self.answer_pending:
             self.advance_problem()
             return
@@ -293,9 +387,11 @@ class MathQuizGame:
 
     def end_game(self):
         total_time = round(time.time() - self.start_time, 2)
-        self.question = f"🎉 Finished! Time: {total_time}s, Wrong: {self.wrong}"
+        self.question = "🎉 Finished!"
         self.feedback = ""
         self.solution = None
+        self.hint = None
+        self.hint_level = 0
         self.question_svg = None
         self.clear_plot()
         app.storage.user.pop(self.name, None)
@@ -304,16 +400,36 @@ class MathQuizGame:
         with open(os.path.join("scores", f"{self.name}_scores.txt"), "a") as f:
             f.write(f"{time.ctime()}: Time {total_time}s, Wrong {self.wrong}\n")
 
+        if self.end_card:
+            stars = star_rating(self.wrong)
+            self.end_avatar_label.set_text(get_avatar(self.name))
+            self.end_stars_label.set_text("⭐" * stars)
+            self.end_details_label.set_text(
+                f"Time: {format_duration(total_time)} • Misses: {self.wrong}")
+            self.end_message_label.set_text(END_MESSAGES[stars])
+            self.end_card.visible = True
+
         if self.start_button:
+            self.start_button.set_text("🔁 Play again")
             self.start_button.visible = True
             self.start_button.update()
 
     def update_ui(self):
         if self.progress_label:
+            question_number = min(self.current_index + 1, self.total_problems)
             self.progress_label.set_text(
-                f"{self.current_index} out of {self.total_problems}")
+                f"Question {question_number} of {self.total_problems}")
+        if self.progress_bar:
+            self.progress_bar.set_value(self.current_index / self.total_problems)
         if self.question_label:
-            self.question_label.set_text(self.question)
+            displayed_question = handlers.arithmetic.vertical_question(self.question)
+            if displayed_question != self.question:
+                self.question_label.classes(add='font-mono whitespace-pre text-4xl',
+                                            remove='whitespace-normal text-2xl')
+            else:
+                self.question_label.classes(add='whitespace-normal text-2xl',
+                                            remove='font-mono whitespace-pre text-4xl')
+            self.question_label.set_text(displayed_question)
         if self.feedback_label:
             self.feedback_label.set_text(self.feedback)
             if self.feedback_color:
@@ -321,9 +437,20 @@ class MathQuizGame:
             else:
                 self.feedback_label.style("")  # reset to default
         if self.answer_label:
-            self.answer_label.set_text(self.input_text)
+            self.answer_label.set_value(self.input_text)
+            active = self.start_time is not None and self.current_index < self.total_problems and not self.answer_pending
+            self.answer_label.set_enabled(active)
+            if active:
+                self.answer_label.run_method('focus')
         if self.svg_container:
             self.svg_container.set_content(self.question_svg or "")
+        if self.hint_container:
+            self.hint_container.set_content(
+                handlers.visuals.build_svg(self.hint, self.hint_level) if self.hint_level else "")
+        if self.hint_button:
+            self.hint_button.set_text("💡 Show me" if self.hint_level == 0 else "💡 Another hint")
+            self.hint_button.visible = (bool(self.hint) and not self.answer_pending
+                                        and self.hint_level < handlers.visuals.hint_steps(self.hint))
 
 
 # keypad helpers
@@ -332,19 +459,45 @@ def add_char(quiz: MathQuizGame, ch: str):
         return
     quiz.input_text += ch
     if quiz.answer_label:
-        quiz.answer_label.set_text(quiz.input_text)
+        quiz.answer_label.set_value(quiz.input_text)
 
 
 def clear_input(quiz: MathQuizGame):
     quiz.input_text = ""
     if quiz.answer_label:
-        quiz.answer_label.set_text("")
+        quiz.answer_label.set_value("")
+
+
+def handle_quiz_key(quiz: MathQuizGame, key: str):
+    if quiz.answer_pending or quiz.start_time is None or quiz.current_index >= quiz.total_problems:
+        return
+    if key in "0123456789.-/" and len(key) == 1:
+        add_char(quiz, key)
+    elif key == "Enter":
+        if quiz.input_text.strip():
+            quiz.check_answer()
+    elif key == "Backspace":
+        quiz.input_text = quiz.input_text[:-1]
+        if quiz.answer_label:
+            quiz.answer_label.set_value(quiz.input_text)
+    elif key in ("Escape", "Delete"):
+        clear_input(quiz)
+
+
+def handle_keyboard_event(quiz: MathQuizGame, event):
+    if not event.action.keydown or event.action.repeat:
+        return
+    if event.modifiers.ctrl or event.modifiers.alt or event.modifiers.meta:
+        return
+    handle_quiz_key(quiz, event.key.name)
 
 
 # ---------- PAGE FACTORY ----------
-def create_svg_container():
+def create_svg_container(classes='w-[520px] h-[140px]'):
+    # NiceGUI 2.x rejects sanitize; NiceGUI 3.x requires it.
+    # This container only displays SVG generated by our ruler and visuals handlers.
     options = {'sanitize': False} if 'sanitize' in inspect.signature(ui.html).parameters else {}
-    return ui.html('', **options).classes('w-[520px] h-[140px]')
+    return ui.html('', **options).classes(classes)
 
 
 def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_range=(3, 12)):
@@ -352,6 +505,8 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
     def page():
         quiz = MathQuizGame(total_problems=total_problems,
                             allowed_ops=ops, name=name, multiplication_range=multiplication_range)
+        ui.keyboard(on_key=lambda e: handle_keyboard_event(quiz, e), repeating=False,
+                    ignore=['input', 'select', 'textarea'])
 
         # --- try to restore saved progress ---
         # placeholder until client connects
@@ -383,53 +538,118 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
             quiz.question = "Press ▶️ Start Quiz to begin"
             quiz.update_ui()
 
-        with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12"):
+        with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12") as quiz_layout:
+            # Capture Enter on focused keypad buttons before it can click them.
+            # Elsewhere, ui.keyboard handles Enter normally.
+            quiz_layout.on('keydown.capture', lambda e: handle_quiz_key(quiz, 'Enter'), js_handler='''(e) => {
+                if (e.key === 'Enter' && e.target.closest('button') &&
+                    e.target.closest('[data-quiz-keypad]')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey) emit({});
+                }
+            }''')
+            quiz_layout.on('keyup.capture', js_handler='''(e) => {
+                if (e.key === 'Enter' && e.target.closest('button') &&
+                    e.target.closest('[data-quiz-keypad]')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }''')
             with ui.column().classes("items-start"):
-                ui.label(f"Math Quiz for {name.capitalize()}").classes(
+                header_label = ui.label(f"{get_avatar(name)} {name.capitalize()}'s Math Adventure").classes(
                     "text-3xl font-bold mb-6"
                 )
 
-                quiz.progress_label = ui.label("").classes("text-xl mb-2")
+                def pick_avatar(avatar):
+                    set_avatar(name, avatar)
+                    header_label.set_text(f"{avatar} {name.capitalize()}'s Math Adventure")
+
+                quiz.progress_label = ui.label("").classes("text-xl")
+                quiz.progress_bar = ui.linear_progress(value=0, show_value=False, size='24px',
+                                                       color='orange').props('rounded').classes('w-96 mb-4')
                 quiz.feedback_label = ui.label("").classes("text-xl mb-2")
                 quiz.question_label = ui.label("").classes("text-2xl mb-2 max-w-xl whitespace-normal")
-                quiz.answer_label = ui.label("").classes(
-                    "text-2xl font-mono mb-4 h-8"
+                quiz.hint_button = ui.button("💡 Show me", on_click=quiz.show_hint, color=None).classes(
+                    "bg-yellow-400 text-gray-900 text-lg font-bold rounded-xl mb-2"
                 )
+                quiz.hint_button.visible = False
+                quiz.hint_container = create_svg_container("mb-2")
 
-                # ✅ Keypad now evenly aligned and centered
-                keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90")
-                with keypad_col:
-                    for row in [
-                        ["1", "2", "3"],
-                        ["4", "5", "6"],
-                        ["7", "8", "9"],
-                        ["0", ".", "/"],
-                        ["-", "C", "Enter"]
-                    ]:
-                        with ui.row().classes("gap-3 justify-center"):
-                            for key in row:
-                                label = "CLEAR" if key == "C" else "ENTER" if key == "Enter" else key
-                                btn_class = (
-                                    "bg-red-500" if key == "C"
-                                    else "bg-green-500" if key == "Enter"
-                                    else "bg-blue-500"
-                                )
-                                ui.button(label,
-                                        on_click=(lambda q=quiz: clear_input(q))
-                                        if key == "C"
-                                        else (lambda q=quiz: q.check_answer())
-                                        if key == "Enter"
-                                        else (lambda _, k=key, q=quiz: add_char(q, k))
-                                        ).classes(
-                                            f"{btn_class} text-white text-lg font-bold p-3 rounded-xl w-20 h-16"
-                                        )
+                with ui.card().classes("items-center p-8 rounded-3xl bg-gradient-to-br from-yellow-300 "
+                                       "to-orange-400 text-gray-900 w-96") as quiz.end_card:
+                    quiz.end_avatar_label = ui.label("").classes("text-7xl")
+                    ui.label("🎉 You did it!").classes("text-3xl font-bold")
+                    quiz.end_stars_label = ui.label("").classes("text-5xl")
+                    quiz.end_details_label = ui.label("").classes("text-xl")
+                    quiz.end_message_label = ui.label("").classes("text-xl font-semibold")
+                quiz.end_card.visible = False
 
-                quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start()).classes(
+                play_area = ui.column().classes("items-start gap-0")
+                play_area.bind_visibility_from(quiz.end_card, 'visible', backward=lambda shown: not shown)
+                with play_area:
+                    quiz.answer_label = ui.input('Your answer').bind_value(quiz, 'input_text').props(
+                        'outlined autocomplete=off'
+                    ).classes('text-2xl font-mono mb-4 w-64')
+                    quiz.answer_label.disable()
+                    # Handle keys directly on the input; the global listener ignores inputs.
+                    quiz.answer_label.on('keydown', lambda e: handle_quiz_key(quiz, e.args['key']),
+                                         js_handler='''(e) => {
+                        if (!e.ctrlKey && !e.altKey && !e.metaKey &&
+                            ['Enter', 'Escape', 'Delete'].includes(e.key)) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!e.repeat) emit({key: e.key});
+                        }
+                    }''')
+                    ui.label('Type your answer • Enter: submit • Backspace: erase • Esc: clear').classes('text-sm mb-2')
+
+                    # ✅ Keypad now evenly aligned and centered
+                    keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90").props('data-quiz-keypad')
+                    with keypad_col:
+                        for row in [
+                            ["1", "2", "3"],
+                            ["4", "5", "6"],
+                            ["7", "8", "9"],
+                            ["0", ".", "/"],
+                            ["-", "C", "Enter"]
+                        ]:
+                            with ui.row().classes("gap-3 justify-center"):
+                                for key in row:
+                                    label = "CLEAR" if key == "C" else "ENTER" if key == "Enter" else key
+                                    btn_class = (
+                                        "bg-red-500" if key == "C"
+                                        else "bg-green-500" if key == "Enter"
+                                        else "bg-blue-500"
+                                    )
+                                    ui.button(label,
+                                            on_click=(lambda q=quiz: clear_input(q))
+                                            if key == "C"
+                                            else (lambda q=quiz: q.check_answer())
+                                            if key == "Enter"
+                                            else (lambda _, k=key, q=quiz: add_char(q, k)),
+                                            color=None
+                                            ).classes(
+                                                f"{btn_class} text-white text-lg font-bold p-3 rounded-xl w-20 h-16"
+                                            )
+
+                quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start(), color=None).classes(
                     "bg-green-600 text-white text-lg p-3 rounded-xl mt-6"
-                )
+                ).props('data-quiz-start')
 
-            # Right column for plot
-            with ui.column().classes("items-start justify-start"):
+                # Kids can pick their player whenever a quiz isn't in progress.
+                with ui.column().classes("mt-4 gap-1") as avatar_picker:
+                    ui.label("Pick your player:").classes("text-lg")
+                    with ui.row().classes("gap-2"):
+                        for avatar in AVATARS:
+                            ui.button(avatar, on_click=lambda _, a=avatar: pick_avatar(a)).props(
+                                'flat round'
+                            ).classes("text-3xl")
+                avatar_picker.bind_visibility_from(quiz.start_button, 'visible')
+
+            # Scratch work stays visible while moving through follow-up questions.
+            with ui.column().classes("items-start justify-start w-full min-w-0").style('flex: 1 1 520px; max-width: 900px'):
+                Scratchpad().classes('w-full')
                 quiz.svg_container = create_svg_container()
                 quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
 
@@ -439,21 +659,25 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 
 # ---------- REGISTER QUIZ PAGES ----------
 # make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
-make_quiz_page(15, "autumn", ["lcm", "gcf"])
+make_quiz_page(15, "autumn", ["lcm", "gcf", "percent"])
+# Repeating multiplication gives it a 50% chance; addition and subtraction each get 25%.
 make_quiz_page(15, "molly", ["+", "-", "*", "*"], multiplication_range=(3, 7))
 
 
 # ---------- ROOT PAGE ----------
 def root_page():
-    with ui.column().classes("items-center justify-center h-screen gap-6"):
-        ui.label("Welcome to Peaccion Math!").classes(
-            "text-3xl font-bold mb-8")
-        ui.button("Autumn's Quiz", on_click=lambda: ui.navigate.to('/autumn')).classes(
-            "bg-blue-500 text-white text-xl p-6 rounded-xl w-64"
-        )
-        ui.button("Molly's Quiz", on_click=lambda: ui.navigate.to('/molly')).classes(
-            "bg-green-500 text-white text-xl p-6 rounded-xl w-64"
-        )
+    with ui.column().classes("items-center justify-center w-full h-screen gap-6"):
+        ui.label("Welcome to Peaccion Math!").classes("text-4xl font-bold")
+        ui.label("Pick your player").classes("text-2xl mb-6")
+        with ui.row().classes("gap-8 justify-center"):
+            for name, kid in KIDS.items():
+                with ui.card().classes(
+                    f"items-center p-8 rounded-3xl cursor-pointer bg-gradient-to-br {kid['gradient']} "
+                    "text-white w-64 hover:scale-105 transition-transform"
+                ).on('click', lambda _, n=name: ui.navigate.to(f'/{n}')):
+                    ui.label(get_avatar(name)).classes("text-6xl")
+                    ui.label(name.capitalize()).classes("text-2xl font-bold")
+                    ui.label("Let's play! ▶️").classes("text-lg")
 
 ui.page('/',dark=True)(root_page)
 # Disable development file watching when running on the server.

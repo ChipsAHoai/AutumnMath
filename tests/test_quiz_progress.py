@@ -1,4 +1,5 @@
 import copy
+import math
 import os
 from pathlib import Path
 import runpy
@@ -39,6 +40,18 @@ class HtmlCompatibilityTests(unittest.TestCase):
         self.addCleanup(element.delete)
         element.set_content('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
         self.assertIn('<svg', element.content)
+
+
+class KidFriendlyHelperTests(unittest.TestCase):
+    def test_star_rating(self):
+        star_rating = application['star_rating']
+        self.assertEqual([star_rating(w) for w in (0, 1, 3, 4, 10)], [3, 2, 2, 1, 1])
+
+    def test_format_duration(self):
+        format_duration = application['format_duration']
+        self.assertEqual(format_duration(42.4), '42s')
+        self.assertEqual(format_duration(125), '2m 05s')
+        self.assertEqual(format_duration(218943.52), '60h 49m')
 
 
 class QuizProgressTests(unittest.TestCase):
@@ -144,7 +157,8 @@ class QuizProgressTests(unittest.TestCase):
                 with self.subTest(op=op, a=a, b=b):
                     expected = lcm if op == 'lcm' else gcf
                     quiz = self.quiz(ops=[op])
-                    with patch('handlers.common_multiples.random.randint', side_effect=[a, b]):
+                    with patch('handlers.common_multiples.random.randint', side_effect=[a, b]), \
+                            patch('handlers.common_multiples.random.random', return_value=0):
                         quiz.start()
                     self.assertEqual(quiz.solution, expected)
                     self.assertIn(str(a), quiz.question)
@@ -324,6 +338,168 @@ class QuizProgressTests(unittest.TestCase):
         self.assertEqual(quiz.feedback, '')
         self.assertIsNotNone(quiz.solution)
         self.assertIn('test', self.storage)
+
+    def test_picture_hint_appears_after_miss_and_survives_refresh(self):
+        quiz = self.quiz(ops=['*'])
+        quiz.start()
+        self.assertEqual(quiz.hint['kind'], 'dots')
+        self.assertEqual(quiz.hint_level, 0)
+        quiz.input_text = str(quiz.solution + 1)
+        quiz.check_answer()
+        self.assertEqual(quiz.hint_level, 1)
+        restored = self.quiz(ops=['*'])
+        restored.restore_progress(copy.deepcopy(self.storage['test']))
+        self.assertEqual(restored.hint, quiz.hint)
+        self.assertEqual(restored.hint_level, 1)
+        self.answer_correctly(restored)
+        restored.advance_problem()
+        self.assertEqual(restored.hint_level, 0)
+        # Saves from before stepped hints stored a yes/no flag.
+        old = self.quiz(ops=['*'])
+        old.restore_progress({'question': '3 × 5 = ?', 'solution': '15', 'symbol': '*', 'hint_shown': True})
+        self.assertEqual(old.hint_level, 1)
+
+    def test_saves_from_before_hints_get_a_picture(self):
+        import handlers.common_multiples as common
+        cases = [('+', '47 + 25 = ?', {'kind': 'blocks', 'a': 47, 'b': 25, 'op': '+'}),
+                 ('-', '75 - 56 = ?', {'kind': 'blocks', 'a': 75, 'b': 56, 'op': '-'}),
+                 ('*', '3 × 5 = ?', {'kind': 'dots', 'a': 3, 'b': 5})]
+        for op, stories in (('lcm', common.LCM_STORIES), ('gcf', common.GCF_STORIES)):
+            for story in stories:
+                cases.append((op, story.format(a=96, b=72), {'kind': 'venn', 'a': 96, 'b': 72}))
+                for follow_up in common.make_follow_ups(op, story, 96, 72):
+                    cases.append((op, follow_up['question'], {'kind': 'venn', 'a': 96, 'b': 72}))
+        for op, question, hint in cases:
+            with self.subTest(question=question):
+                quiz = self.quiz(ops=[op])
+                quiz.restore_progress({'question': question, 'solution': '1', 'symbol': op,
+                                       'follow_up_questions': [{'question': 'next', 'solution': 1}]})
+                self.assertEqual(quiz.hint, hint)
+
+    def test_common_factor_of_one_is_rare(self):
+        import handlers.common_multiples as common
+        with patch.object(common.random, 'randint', side_effect=[97, 100, 12, 18]), \
+                patch.object(common.random, 'random', return_value=0.5):
+            self.assertEqual(common.pick_pair(), (12, 18))
+        with patch.object(common.random, 'randint', side_effect=[97, 100]), \
+                patch.object(common.random, 'random', return_value=0.05):
+            self.assertEqual(common.pick_pair(), (97, 100))
+        ones = sum(math.gcd(*common.pick_pair()) == 1 for _ in range(2000))
+        self.assertLess(ones, 2000 * 0.2)
+
+    def test_show_me_button_reveals_each_kind_of_picture(self):
+        import handlers.visuals
+        for op, kind in (('+', 'blocks'), ('-', 'blocks'), ('*', 'dots'), ('lcm', 'venn'), ('gcf', 'venn')):
+            with self.subTest(op=op):
+                quiz = self.quiz(ops=[op])
+                quiz.start()
+                quiz.show_hint()
+                self.assertEqual(quiz.hint_level, 1)
+                self.assertEqual(quiz.hint['kind'], kind)
+                self.assertIn('<svg', handlers.visuals.build_svg(quiz.hint))
+
+    def test_percent_word_problems_ask_for_the_part_then_the_total(self):
+        import handlers.percent as percent
+        expected = {  # story index: (part, total) for $48 at the given percent
+            0: (15, '7.20', '40.80'), 1: (6, '2.88', '50.88'), 2: (12, '5.76', '53.76'),
+            3: (25, '12', '36'), 4: (3, '1.44', '49.44'),
+        }
+        for index, (pct, part, total) in expected.items():
+            story = percent.PART_STORIES[index]
+            with self.subTest(story=story[0]):
+                quiz = self.quiz(total=1, ops=['percent'])
+                with patch.object(percent.random, 'random', return_value=0.9), \
+                        patch.object(percent.random, 'choice', side_effect=['percent', story, pct]), \
+                        patch.object(percent.random, 'randint', return_value=48):
+                    quiz.start()
+                self.assertIn('$48', quiz.question)
+                self.assertEqual(quiz.hint_level, 0)
+                quiz.input_text = f'${part}'
+                quiz.check_answer()
+                self.assertTrue(quiz.answer_pending)
+                quiz.advance_problem()
+                self.assertIn(f'is ${part}', quiz.question)
+                # A refresh mid-problem keeps the follow-up.
+                restored = self.quiz(total=1, ops=['percent'])
+                restored.restore_progress(copy.deepcopy(self.storage['test']))
+                restored.input_text = total
+                with patch.object(os, 'makedirs'), patch('builtins.open', create=True):
+                    restored.check_answer()
+                    restored.advance_problem()
+                self.assertIn('Finished!', restored.question)
+
+    def test_percent_word_problems_can_ask_for_the_percent(self):
+        import handlers.percent as percent
+        quiz = self.quiz(ops=['percent'])
+        with patch.object(percent.random, 'random', return_value=0.1), \
+                patch.object(percent.random, 'choice', side_effect=['percent', percent.FIND_PERCENT_STORIES[0], 25]), \
+                patch.object(percent.random, 'randint', return_value=3):
+            quiz.start()
+        self.assertIn('$60', quiz.question)
+        self.assertIn('$15 off', quiz.question)
+        self.assertEqual(quiz.follow_up_questions, [])
+        quiz.input_text = '25%'
+        quiz.check_answer()
+        self.assertTrue(quiz.answer_pending)
+
+    def test_percent_hints_never_say_the_answer(self):
+        import re
+        import xml.dom.minidom
+        import handlers.percent as percent
+        import handlers.visuals as visuals
+        for _ in range(300):
+            quiz = SimpleNamespace(clear_plot=lambda: None, follow_up_questions=[])
+            percent.generate(quiz)
+            for step in (1, 2):
+                svg = visuals.build_svg(quiz.hint, step)
+                xml.dom.minidom.parseString(svg)
+                texts = re.findall(r'>([^<]+)</text>', svg)
+                if 'pct' in quiz.hint:
+                    answers = {percent.money(quiz.solution), percent.money(quiz.follow_up_questions[0]['solution'])}
+                    self.assertFalse([t for t in texts if t.split(' = ')[-1] in answers], (texts, answers))
+                else:
+                    self.assertFalse([t for t in texts if f'{quiz.solution}%' in t and t != '100%'], texts)
+                    self.assertNotIn('<line', svg)
+
+    def test_venn_hints_reveal_one_step_at_a_time(self):
+        import handlers.visuals as visuals
+        quiz = self.quiz(ops=['gcf'])
+        quiz.start()
+        a, b = quiz.hint['a'], quiz.hint['b']
+        factored = visuals._factorization(a)
+        steps = []
+        for _ in range(4):
+            quiz.input_text = '0'
+            quiz.check_answer()
+            steps.append(visuals.build_svg(quiz.hint, quiz.hint_level))
+        self.assertEqual(quiz.hint_level, 3)
+        self.assertIn('Step 1', steps[0])
+        self.assertNotIn(factored, steps[0])
+        self.assertIn(factored, steps[1])
+        self.assertNotIn('GCF: multiply', steps[1])
+        self.assertIn('GCF: multiply', steps[2])
+        self.assertEqual(steps[2], steps[3])
+
+    def test_venn_hint_puts_shared_factors_in_the_middle(self):
+        import handlers.visuals as visuals
+        self.assertEqual(visuals.prime_factors(96), [2, 2, 2, 2, 2, 3])
+        svg = visuals.factor_venn_svg(64, 81)
+        self.assertIn('only 1', svg)
+
+    def test_finishing_shows_end_card_with_stars(self):
+        quiz = self.quiz(total=1)
+        quiz.end_card = SimpleNamespace(visible=False)
+        quiz.end_avatar_label, quiz.end_stars_label, quiz.end_details_label, quiz.end_message_label = (
+            Mock() for _ in range(4))
+        quiz.start()
+        quiz.wrong = 2
+        self.answer_correctly(quiz)
+        with patch.object(os, 'makedirs'), patch('builtins.open', create=True):
+            quiz.advance_problem()
+        self.assertTrue(quiz.end_card.visible)
+        quiz.end_stars_label.set_text.assert_called_once_with('⭐⭐')
+        quiz.start()
+        self.assertFalse(quiz.end_card.visible)
 
     def test_refresh_after_final_answer_finishes_quiz(self):
         quiz = self.quiz(total=1)

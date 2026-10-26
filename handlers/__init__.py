@@ -1,9 +1,10 @@
 from . import arithmetic, fraction, alg, mix, multi_alg, parens, decimal_multi_div, slope, ruler, cm_ruler
-from . import common_multiples
+from . import common_multiples, percent, visuals
 
 registry = {
     "lcm": common_multiples.lcm,
     "gcf": common_multiples.gcf,
+    "percent": percent.generate,
     "+": arithmetic.plus,
     "-": arithmetic.minus,
     "x": arithmetic.times,

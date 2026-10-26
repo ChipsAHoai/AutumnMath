@@ -26,20 +26,34 @@ GCF_STORIES = (
 )
 
 
+# Pairs with no common factor make the GCF 1 and the LCM just a × b. About 60% of random pairs
+# are like that; keeping only 10% of them leaves roughly 1 problem in 8 with a GCF of 1.
+COPRIME_CHANCE = 0.1
+
+
+def pick_pair():
+    while True:
+        a, b = random.randint(10, 100), random.randint(10, 100)
+        if math.gcd(a, b) > 1 or random.random() < COPRIME_CHANCE:
+            return a, b
+
+
 def lcm(quiz):
-    a, b = random.randint(10, 100), random.randint(10, 100)
+    a, b = pick_pair()
     quiz.solution = math.lcm(a, b)
     story = random.choice(LCM_STORIES)
     quiz.question = story.format(a=a, b=b)
+    quiz.hint = {"kind": "venn", "a": a, "b": b}
     quiz.follow_up_questions = make_follow_ups('lcm', story, a, b)
     quiz.clear_plot()
 
 
 def gcf(quiz):
-    a, b = random.randint(10, 100), random.randint(10, 100)
+    a, b = pick_pair()
     quiz.solution = math.gcd(a, b)
     story = random.choice(GCF_STORIES)
     quiz.question = story.format(a=a, b=b)
+    quiz.hint = {"kind": "venn", "a": a, "b": b}
     quiz.follow_up_questions = make_follow_ups('gcf', story, a, b)
     quiz.clear_plot()
 
@@ -92,3 +106,13 @@ def restore_follow_ups(quiz):
             if 10 <= a <= 100 and 10 <= b <= 100:
                 quiz.follow_up_questions = make_follow_ups(quiz.symbol, story, a, b)
             return
+
+
+def restore_hint(quiz):
+    """Rebuild the picture hint from a saved story or follow-up question's two numbers."""
+    packs = re.search(r"packs of (\d+) and erasers in packs of (\d+)", quiz.question)
+    numbers = packs.groups() if packs else re.findall(r"\d+", quiz.question)[:2]
+    if len(numbers) == 2:
+        a, b = map(int, numbers)
+        if 10 <= a <= 100 and 10 <= b <= 100:
+            quiz.hint = {"kind": "venn", "a": a, "b": b}
