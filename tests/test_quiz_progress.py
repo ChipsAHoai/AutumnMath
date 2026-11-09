@@ -492,6 +492,21 @@ class QuizProgressTests(unittest.TestCase):
         svg = visuals.factor_venn_svg(64, 81)
         self.assertIn('only 1', svg)
 
+    def test_times_table_practice(self):
+        quiz = MathQuizGame(total_problems=200, allowed_ops=['*'], name='test',
+                            multiplication_range=(1, 10), times_table=3)
+        quiz.start()
+        seen = set()
+        for _ in range(200):
+            quiz.generate_problem()
+            a, b = quiz.hint['a'], quiz.hint['b']
+            self.assertIn(3, (a, b))
+            self.assertEqual(quiz.solution, a * b)
+            seen.add((a, b))
+        other = {a if b == 3 else b for a, b in seen}
+        self.assertEqual(other, set(range(1, 11)))
+        self.assertTrue({(3, 7), (7, 3)} & seen and any(a != 3 for a, b in seen))
+
     def test_battle_misses_cost_two_hearts_and_hints_cost_one(self):
         quiz = self.quiz(ops=['lcm'])
         quiz.start()

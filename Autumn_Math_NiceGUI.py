@@ -198,11 +198,13 @@ def format_duration(seconds: float) -> str:
 
 # ---------- BASE QUIZ CLASS ----------
 class MathQuizGame:
-    def __init__(self, total_problems=20, allowed_ops=None, name="player", multiplication_range=(3, 12)):
+    def __init__(self, total_problems=20, allowed_ops=None, name="player", multiplication_range=(3, 12),
+                 times_table=None):
         self.total_problems = total_problems
         self.allowed_ops = allowed_ops or ["+"]
         self.name = name
         self.multiplication_range = multiplication_range
+        self.times_table = times_table  # e.g. 3: every × problem uses 3, the other number from multiplication_range
 
         self.current_index = 0
         self.wrong = 0
@@ -801,11 +803,12 @@ def create_svg_container(classes='w-[520px] h-[140px]'):
     return ui.html('', **options).classes(classes)
 
 
-def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_range=(3, 12)):
+def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_range=(3, 12), times_table=None):
     @ui.page(f'/{name}', dark=True)
     def page():
         quiz = MathQuizGame(total_problems=total_problems,
-                            allowed_ops=ops, name=name, multiplication_range=multiplication_range)
+                            allowed_ops=ops, name=name, multiplication_range=multiplication_range,
+                            times_table=times_table)
         ui.add_css(AVATAR_DANCE_CSS)
         ui.add_css(BATTLE_CSS)
         ui.keyboard(on_key=lambda e: handle_keyboard_event(quiz, e), repeating=False,
@@ -988,8 +991,9 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
 # ---------- REGISTER QUIZ PAGES ----------
 # make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
 make_quiz_page(15, "autumn", ["lcm", "gcf", "percent"])
-# Repeating multiplication gives it a 50% chance; addition and subtraction each get 25%.
-make_quiz_page(15, "molly", ["*"], multiplication_range=(3, 7))
+# Molly practices one times table: 3 × 1 through 3 × 10, with the 3 on either side.
+make_quiz_page(100, "molly", ["*"], times_table=3, multiplication_range=(1, 10))
+
 
 
 # ---------- ROOT PAGE ----------

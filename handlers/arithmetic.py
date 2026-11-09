@@ -45,7 +45,14 @@ def minus(quiz):
 
 def times(quiz):
     lower, upper = quiz.multiplication_range
-    x, y = random.randint(lower, upper), random.randint(lower, upper)
+    table = getattr(quiz, "times_table", None)
+    if table:
+        # Practice one table, with it on either side so both orders get learned.
+        x, y = table, random.randint(lower, upper)
+        if random.random() < 0.5:
+            x, y = y, x
+    else:
+        x, y = random.randint(lower, upper), random.randint(lower, upper)
     quiz.solution = x * y
     quiz.question = f"{x} × {y} = ?"
     quiz.hint = {"kind": "dots", "a": x, "b": y}
