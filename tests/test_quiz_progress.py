@@ -665,13 +665,32 @@ class QuizProgressTests(unittest.TestCase):
         # The next treat needs another 7 wins.
         self.assertFalse(record('test', won=True)['treat'])
 
-    def test_treat_sends_one_email(self):
+    def test_every_finished_game_sends_one_email(self):
         import notify
         sent = []
-        with patch.object(notify, 'send_in_background', side_effect=lambda subject, body: sent.append(subject)):
+        with patch.object(notify, 'send_in_background', side_effect=lambda subject, body: sent.append((subject, body))):
             for _ in range(7):
                 self.win_quiz()
-        self.assertEqual(sent, ['🎁 Test earned free treat #1!'])
+        subjects = [subject for subject, _ in sent]
+        # One email per win; the seventh is the treat email, with that game's results inside.
+        self.assertEqual(len(subjects), 7)
+        self.assertTrue(all(s.startswith('✅ Test finished a math game ⭐') for s in subjects[:6]), subjects)
+        self.assertEqual(subjects[6], '🎁 Test earned free treat #1!')
+        self.assertIn('Practiced: times tables', sent[6][1])
+        self.assertIn('Wins toward the next treat: 6 of 7', sent[5][1])
+
+    def test_game_over_sends_an_email(self):
+        import notify
+        sent = []
+        quiz = self.quiz(ops=['lcm', 'gcf'])
+        quiz.start()
+        with patch.object(notify, 'send_in_background', side_effect=lambda subject, body: sent.append((subject, body))), \
+                patch.object(os, 'makedirs'), patch('builtins.open', create=True):
+            quiz.life = 0
+            quiz.game_over()
+        self.assertEqual(sent[0][0], "💀 Test's math game ended early")
+        self.assertIn('Practiced: LCM, GCF', sent[0][1])
+        self.assertIn('ran out of hearts after beating 0 of 3', sent[0][1])
 
     def test_email_uses_gmail_settings_and_is_skipped_when_not_set(self):
         import notify

@@ -318,6 +318,13 @@ def castle_road_svg(wins: int, avatar: str) -> str:
 
 
 END_MESSAGES = {3: "Perfect! Not a single miss!", 2: "Awesome work!", 1: "Great practice! Keep going!"}
+# How each kind of problem is named in the email to the parent.
+TOPIC_NAMES = {
+    "+": "adding", "-": "subtracting", "*": "times tables", "x": "times tables", "÷": "dividing",
+    "fraction": "fractions", "alg": "equations", "multi_alg": "equations", "hard_alg": "harder equations",
+    "mix": "mixed problems", "parens": "parentheses", "decimal_multi_div": "decimals", "slope": "slope",
+    "ruler": "inch ruler", "cm_ruler": "centimeter ruler", "lcm": "LCM", "gcf": "GCF", "percent": "percents",
+}
 
 
 def get_avatar(name: str) -> str:
@@ -827,6 +834,15 @@ class MathQuizGame:
             self.start_button.visible = True
             self.start_button.update()
 
+    def game_report(self, outcome: str, kid: dict) -> str:
+        """The email body about one finished game: how it went and what was practiced."""
+        topics = ", ".join(dict.fromkeys(TOPIC_NAMES.get(op, op) for op in self.allowed_ops))
+        return (f"{outcome}\n\n"
+                f"Practiced: {topics}\n"
+                f"Time: {format_duration(time.time() - self.start_time)} • Misses: {self.wrong} • "
+                f"Hearts left: {self.life} of {MAX_LIFE}\n"
+                f"Wins toward the next treat: {kid['streak']} of {WINS_FOR_TREAT} ({kid['wins']} wins in total)")
+
     def end_game(self):
         total_time = round(time.time() - self.start_time, 2)
         self.enemy = None
@@ -835,12 +851,16 @@ class MathQuizGame:
         self.finish("🎉 Finished!", f"Time {total_time}s, Wrong {self.wrong}, Life {self.life}")
         kid = record_result(self.name, won=True)
         self.update_treat_label(kid)
+        stars = star_rating(self.wrong)
+        report = self.game_report(f"{self.name.capitalize()} won the math game: all {self.total_problems} "
+                                  f"questions, {'⭐' * stars}.", kid)
         if kid["treat"]:
+            # One email covers both the game and the treat.
             notify.send_in_background(
                 f"🎁 {self.name.capitalize()} earned free treat #{kid['treats']}!",
                 f"{self.name.capitalize()} reached the castle on {kid['last_treat']}: "
                 f"{WINS_FOR_TREAT} more math games won ({kid['wins']} in total).\n\n"
-                f"Last game: {format_duration(total_time)}, {self.wrong} misses, {self.life} hearts left.\n\n"
+                f"{report}\n\n"
                 "They'll be showing you their treat screen soon! 🍦🧋🍩")
             self.show_end_card(
                 "🎁 FREE TREAT! 🎁", "🍦🧋🍩",
@@ -848,7 +868,7 @@ class MathQuizGame:
                 "Show this screen to get any treat you want: ice cream, boba, anything yummy!",
                 "🔁 Play again")
             return
-        stars = star_rating(self.wrong)
+        notify.send_in_background(f"✅ {self.name.capitalize()} finished a math game {'⭐' * stars}", report)
         self.show_end_card("🎉 You did it!", "⭐" * stars,
                            f"Time: {format_duration(total_time)} • Misses: {self.wrong} • ❤️ {self.life} left",
                            f"{END_MESSAGES[stars]} {WINS_FOR_TREAT - kid['streak']} more wins for a free treat! 🍦",
@@ -858,6 +878,10 @@ class MathQuizGame:
         self.finish("💀 Game over!", f"Game over: beat {self.defeated} of {self.total_problems}, Wrong {self.wrong}")
         kid = record_result(self.name, won=False)
         self.update_treat_label(kid)
+        notify.send_in_background(
+            f"💀 {self.name.capitalize()}'s math game ended early",
+            self.game_report(f"{self.name.capitalize()} ran out of hearts after beating {self.defeated} of "
+                             f"{self.total_problems} questions. The {self.enemy} won this time.", kid))
         self.show_end_card("💀 Game over!", "😵",
                            f"You beat {self.defeated} of {self.total_problems} enemies. "
                            f"The {self.enemy} got you this time.",
