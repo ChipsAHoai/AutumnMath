@@ -79,6 +79,12 @@ body.body--dark, body {
 .q-btn.am-bad { background: var(--am-bad) !important; color: #fff !important; }
 .q-btn.am-key { background: var(--am-surface) !important; color: var(--am-ink) !important; border: 1.5px solid var(--am-line); }
 .q-btn.am-key:hover { border-color: var(--am-cool-light); }
+a.am-linkbtn {
+  display: inline-flex; align-items: center; padding: 6px 16px; border-radius: 12px; text-decoration: none;
+  min-height: 2.572em;  /* same height as Quasar buttons, like the hint button beside it */
+  background: var(--am-cool); color: #fff; font-family: "Baloo 2", "Trebuchet MS", system-ui, sans-serif; font-weight: 800;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .2);
+}
 .am-progress .q-linear-progress__model { background: var(--am-mark) !important; }
 .am-progress .q-linear-progress__track { background: var(--am-line) !important; opacity: 1; }
 .am-chip {
@@ -956,12 +962,10 @@ class MathQuizGame:
             self.hint_button.visible = (bool(self.hint) and not self.answer_pending
                                         and self.hint_level < handlers.visuals.hint_steps(self.hint))
         if self.learn_button:
-            self.learn_button.visible = self.in_play and learn_url(self.symbol) is not None
-
-    def open_learn_page(self):
-        url = learn_url(self.symbol)
-        if url:
-            ui.navigate.to(url, new_tab=True)
+            url = learn_url(self.symbol)
+            self.learn_button.visible = self.in_play and url is not None
+            if url:
+                self.learn_button.props(f'href={url}')
 
 
 # keypad helpers
@@ -1112,8 +1116,10 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                         )
                         quiz.hint_button.visible = False
                         # Opens the picture walkthrough for this kind of problem in a new tab; free, unlike hints.
-                        quiz.learn_button = ui.button("📖 Learn", on_click=quiz.open_learn_page,
-                                                      color=None).classes("am-btn am-cool text-lg")
+                        # A real link, not a button: iPad Safari blocks new tabs that the server opens
+                        # after the tap, but always lets a tapped link open one.
+                        quiz.learn_button = ui.link("📖 Learn", "/learn/", new_tab=True).classes(
+                            "am-linkbtn text-lg")
                         quiz.learn_button.visible = False
 
                 with ui.card().classes("am-bench am-end items-center p-8 w-full") as quiz.end_card:

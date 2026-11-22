@@ -803,16 +803,14 @@ class QuizProgressTests(unittest.TestCase):
         quiz.start()
         self.assertFalse(quiz.end_card.visible)
 
-    def test_learn_button_opens_the_matching_page(self):
+    def test_learn_link_points_at_the_matching_page(self):
         quiz = self.quiz(ops=['percent'])
-        quiz.learn_button = SimpleNamespace(visible=False)
+        quiz.learn_button = SimpleNamespace(visible=False, props=Mock())
         quiz.update_ui()
         self.assertFalse(quiz.learn_button.visible)
         quiz.start()
         self.assertTrue(quiz.learn_button.visible)
-        self.ui.navigate = Mock()
-        quiz.open_learn_page()
-        self.ui.navigate.to.assert_called_once_with('/learn/percent.html', new_tab=True)
+        quiz.learn_button.props.assert_called_with('href=/learn/percent.html')
         quiz.symbol = 'decimal_multi_div'
         quiz.update_ui()
         self.assertFalse(quiz.learn_button.visible)
