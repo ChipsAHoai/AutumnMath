@@ -129,6 +129,18 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--mark); outl
 .kind b { font-family: var(--display); font-size: 1.05rem; }
 .kind span { font-size: .85rem; color: var(--muted); }
 
+.mark-b { fill: none; stroke: var(--mark); stroke-width: 4; }
+.lab.b { fill: var(--ink); }
+.eq-live { font: 800 clamp(1.5rem, 5vw, 2.1rem)/1.2 var(--display); }
+.slider { display: grid; gap: 6px; }
+.slider label { font-weight: 700; display: flex; justify-content: space-between; gap: 12px; }
+.slider output { color: var(--cool); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--cool); }
+.walk { display: grid; gap: 8px; }
+.walk p { padding-left: 14px; border-left: 3px solid var(--mark); }
+.pv { margin: 0; display: grid; gap: 6px; }
+.pv figcaption { font-weight: 700; color: var(--ink); }
+.pv svg { max-width: 100%; height: auto; }
 
 @media (max-width: 640px) {
   .bench { padding: 18px; }
@@ -246,6 +258,50 @@ h1 .hl {
     </div>
     <div class="row"><button id="s4new">New line</button></div>
   </section>
+
+  <!-- Step 5 -->
+  <section class="bench" aria-labelledby="s5">
+    <header>
+      <span class="eyebrow">Step 5</span>
+      <h2 id="s5">The equation: y = mx + b</h2>
+      <p class="say">Every straight line can be written as <strong>y = mx + b</strong>. <span class="ca">m</span> is the slope: it tilts the line. <span class="cb">b</span> is where the line crosses the y-axis: it slides the line up and down.</p>
+    </header>
+    <p class="eq-live" id="s5eq"></p>
+    <div class="split">
+      <svg class="graph" id="g5" viewBox="0 0 440 440" role="img" aria-label="The line for the chosen m and b"></svg>
+      <div style="display:grid;gap:16px">
+        <div class="slider">
+          <label for="s5m"><span class="ca">m, the slope</span> <output id="s5mout">1</output></label>
+          <input type="range" id="s5m" min="0" max="10" value="7">
+        </div>
+        <div class="slider">
+          <label for="s5b"><span class="cb">b, where it crosses</span> <output id="s5bout">2</output></label>
+          <input type="range" id="s5b" min="-8" max="8" value="2">
+        </div>
+        <div class="status" id="s5status"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 6 -->
+  <section class="bench" aria-labelledby="s6">
+    <header>
+      <span class="eyebrow">Step 6</span>
+      <h2 id="s6">Two points to an equation</h2>
+      <p class="say">Find the slope first. Then put one point into y = mx + b and solve for b. Check on the graph by walking back to the y-axis.</p>
+    </header>
+    <p class="question" id="s6q"></p>
+    <div class="split">
+      <svg class="graph" id="g6" viewBox="0 0 440 440" role="img" aria-label="The two points and the line through them"></svg>
+      <div style="display:grid;gap:12px">
+        <div class="walk" id="s6walk"></div>
+        <div class="row">
+          <button class="primary" id="s6next">Next step</button>
+          <button id="s6new">New problem</button>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -317,7 +373,7 @@ function drawGraph(svg, A, B, opts = {}) {
         `rise ${rise > 0 ? "+" : ""}${rise}`));
     }
   }
-  [[A, opts.names?.[0] ?? "A"], [B, opts.names?.[1] ?? "B"]].forEach(([p, name], i) => {
+  if (opts.points !== false) [[A, opts.names?.[0] ?? "A"], [B, opts.names?.[1] ?? "B"]].forEach(([p, name], i) => {
     svg.append(el("circle", { class: "pt", cx: SX(p.x), cy: SY(p.y), r: 8 }));
     svg.append(el("text", { class: "ptlab", x: SX(p.x) + 10, y: SY(p.y) - 10 }, `${name} (${p.x}, ${p.y})`));
     if (opts.drag) svg.append(el("circle", { class: "grab", cx: SX(p.x), cy: SY(p.y), r: 18, "data-i": i }));
@@ -438,6 +494,75 @@ function s4New() {
 }
 $("s4new").onclick = s4New;
 s4New();
+
+/* Lines: y = mx + b. Slopes are kept as {n, d} so fractions stay exact. */
+const fracOf = (s) => { const [n, d = "1"] = String(s).split("/"); return { n: +n, d: +d }; };
+const mText = (m) => (m.d === 1 ? `${m.n < 0 ? "−" : ""}${Math.abs(m.n)}` : `${m.n < 0 ? "−" : ""}${Math.abs(m.n)}/${m.d}`);
+const num = (v) => (v < 0 ? `−${-v}` : `${v}`);
+function lineText(m, b) {
+  let mx = m.n === 0 ? "" : m.d === 1 && Math.abs(m.n) === 1 ? (m.n < 0 ? "−x" : "x") : `${mText(m)}x`;
+  if (!mx) return `y = ${num(b)}`;
+  return `y = ${mx}${b === 0 ? "" : b > 0 ? ` + ${b}` : ` − ${-b}`}`;
+}
+function markB(svg, b, label) {
+  svg.append(el("circle", { class: "mark-b", cx: SX(0), cy: SY(b), r: 11 }));
+  svg.append(el("text", { class: "lab b", x: SX(0) + 16, y: SY(b) - 12 }, label));
+}
+
+const SLOPES = ["-3", "-2", "-3/2", "-1", "-1/2", "0", "1/2", "1", "3/2", "2", "3"];
+function s5() {
+  const m = fracOf(SLOPES[+$("s5m").value]), b = +$("s5b").value;
+  $("s5mout").textContent = mText(m);
+  $("s5bout").textContent = num(b);
+  $("s5eq").textContent = lineText(m, b);
+  drawGraph($("g5"), { x: 0, y: b }, { x: m.d, y: b + m.n }, { showRun: false, showRise: false, points: false });
+  markB($("g5"), b, `b = ${num(b)}`);
+  const tilt = m.n === 0 ? "flat: m = 0" : m.n > 0 ? "uphill: m is positive" : "downhill: m is negative";
+  const steep = m.n === 0 ? "" : ` Each step: ${m.d} right, ${Math.abs(m.n)} ${m.n > 0 ? "up" : "down"}.`;
+  $("s5status").innerHTML = `<p><span class="ca">m = ${mText(m)}</span>: ${tilt}.${steep}</p>
+    <p><span class="cb">b = ${num(b)}</span>: the line crosses the y-axis at (0, ${num(b)}).</p>`;
+}
+["s5m", "s5b"].forEach((id) => $(id).addEventListener("input", s5));
+s5();
+
+const S6_SLOPES = ["-4", "-3", "-2", "-1", "1", "2", "3", "4", "1/2", "-1/2", "3/2", "-2/3", "2/3", "-1/3"];
+let s6 = {};
+function s6New() {
+  let m, b, xs;
+  do {
+    m = fracOf(S6_SLOPES[rnd(0, S6_SLOPES.length - 1)]);
+    b = rnd(-6, 6);
+    xs = [];
+    for (let x = -8; x <= 8; x++) if (x && x % m.d === 0 && Math.abs((m.n * x) / m.d + b) <= 9) xs.push(x);
+  } while (xs.length < 2);
+  const i = rnd(0, xs.length - 1);
+  let j; do { j = rnd(0, xs.length - 1); } while (j === i);
+  const P = (x) => ({ x, y: (m.n * x) / m.d + b });
+  s6 = { m, b, A: P(xs[i]), B: P(xs[j]), step: 0 };
+  $("s6q").textContent = `A line goes through (${s6.A.x}, ${s6.A.y}) and (${s6.B.x}, ${s6.B.y}). What is its equation?`;
+  s6Draw();
+}
+function s6Draw() {
+  const { m, b, A, B, step } = s6;
+  const run = B.x - A.x, rise = B.y - A.y, k = (m.n * A.x) / m.d;
+  const shownX = A.x < 0 ? `(${A.x})` : `${A.x}`;
+  if (step < 4) {
+    drawGraph($("g6"), A, B, { showRun: step >= 1, showRise: step >= 1, names: ["1st", "2nd"] });
+  } else {
+    drawGraph($("g6"), A, { x: 0, y: b }, { steps: Math.abs(A.x) / m.d, names: ["1st", "b"] });
+  }
+  const lines = [];
+  if (step >= 1) lines.push(`<p><strong>Slope.</strong> Rise ÷ run = ${rise} ÷ ${run} = <strong>${mText(m)}</strong></p>`);
+  if (step >= 2) lines.push(`<p><strong>Put in a point.</strong> y = mx + b with (${A.x}, ${A.y}): ${num(A.y)} = ${mText(m)} × ${shownX} + b</p>`);
+  if (step >= 3) lines.push(`<p><strong>Solve for b.</strong> ${mText(m)} × ${shownX} = ${num(k)}, so ${num(A.y)} = ${num(k)} + b. ${k >= 0 ? `Take ${k} away from` : `Add ${-k} to`} both sides: <strong>b = ${num(b)}</strong></p>`);
+  if (step >= 4) lines.push(`<p><strong>The equation:</strong> <span style="font:800 1.3rem var(--display)">${lineText(m, b)}</span><br>Check: walking back from the 1st point in slope-sized steps lands on (0, ${num(b)}).</p>`);
+  if (step === 0) lines.push(`<p>Press <strong>Next step</strong> to find the slope first.</p>`);
+  $("s6walk").innerHTML = lines.join("");
+  $("s6next").disabled = step >= 4;
+}
+$("s6next").onclick = () => { s6.step++; s6Draw(); };
+$("s6new").onclick = s6New;
+s6New();
 </script>
 <script>
 // Show every fraction like 5/6 as a stacked fraction, including ones the page writes later.

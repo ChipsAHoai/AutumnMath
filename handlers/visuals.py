@@ -6,6 +6,7 @@ the part being asked about, red for anything that comes off.
 import re
 import textwrap
 from collections import Counter
+from fractions import Fraction
 from math import ceil, gcd
 from xml.sax.saxutils import escape
 
@@ -399,8 +400,8 @@ def percent_bar_svg(whole: int, pct=None, part=None, sign=1, step: int = 1) -> s
 TILE = 30
 
 
-def _tile_items(term, leave=0):
-    """Drawable pieces for one term: list of (width, height, draw(x, bottom))."""
+def _tile_items(term, leave=0, var="x"):
+    """Drawable pieces for one term: list of (width, height, draw(x, bottom)). `var` is the letter on the tiles."""
     t = term["t"]
     if t == "x":
         items = []
@@ -409,16 +410,16 @@ def _tile_items(term, leave=0):
             items.append((TILE, TILE, lambda x, b: (
                 f'<rect x="{x}" y="{b - TILE}" width="{TILE}" height="{TILE}" rx="6" fill="{BAD_SOFT}" stroke="{BAD}" '
                 f'stroke-width="2.5" stroke-dasharray="4 3" />'
-                + _text(x + TILE / 2, b - 9, "x", size=18, fill=BAD, display=True)
+                + _text(x + TILE / 2, b - 9, var, size=18, fill=BAD, display=True)
                 + f'<path d="M{x + 5} {b - TILE / 2} H{x + TILE - 5}" stroke="{BAD}" stroke-width="2.5" />')))
         rest = term["n"] - going
         if 0 < rest <= 6:
-            items += [_x_tile("x")] * rest
+            items += [_x_tile(var)] * rest
         elif rest > 6:
-            items.append(_x_tile(f"{rest}x", 46))
+            items.append(_x_tile(f"{rest}{var}", 46))
         return items
     if t == "fx":
-        return [_x_tile(f"{term['p']}/{term['q']}x", 52, size=14)]
+        return [_x_tile(f"{term['p']}/{term['q']}{var}", 52, size=14)]
     if t in ("k", "fr"):
         value = term["v"] if t == "k" else term["num"]
         text = str(abs(value)) if t == "k" else f"{abs(term['num'])}/{term['den']}"
@@ -431,7 +432,7 @@ def _tile_items(term, leave=0):
         return [(w, TILE, lambda x, b, w=w, label=label: (
             f'<rect x="{x}" y="{b - TILE}" width="{w}" height="{TILE}" rx="15" fill="{MARK}" />'
             + _text(x + w / 2, b - 9, label, size=16, display=True)))]
-    inner = [item for sub in term["inner"] for item in _tile_items(sub)]
+    inner = [item for sub in term["inner"] for item in _tile_items(sub, var=var)]
     inner_w = sum(w for w, _, _ in inner) + 3 * (len(inner) - 1)
     if t == "grp":
         w, h = inner_w + 10, TILE + 10
@@ -465,8 +466,8 @@ def _x_tile(label, w=TILE, size=18):
         + _text(x + w / 2, b - 9, label, size=size, fill="white", display=True)))
 
 
-def _pan_rows(side, leave, pan_w):
-    items = [item for term in side for item in _tile_items(term, leave)]
+def _pan_rows(side, leave, pan_w, var="x"):
+    items = [item for term in side for item in _tile_items(term, leave, var)]
     rows, row, row_w = [], [], 0
     for item in items:
         if row and row_w + 5 + item[0] > pan_w:
@@ -495,17 +496,18 @@ def _draw_pan(rows, left, pan_w, base):
     return out
 
 
-def balance_svg(left, right, step: int = 1) -> str:
-    """Hint n shows the equation after n − 1 moves and names move n; it never shows x = answer."""
+def balance_svg(left, right, step: int = 1, var="x") -> str:
+    """Hint n shows the equation after n − 1 moves and names move n; it never shows x = answer.
+    `var` names the unknown, e.g. "b" when solving for a line's y-intercept."""
     states = balance.solve(left, right)
     moves = len(states) - 1
     step = max(1, min(step, moves))
     cur, nxt = states[step - 1], states[step]
     leave = nxt.get("take", 0)
     width, pan_w = 560, 240
-    left_rows, right_rows = _pan_rows(cur["L"], leave, pan_w), _pan_rows(cur["R"], leave, pan_w)
+    left_rows, right_rows = _pan_rows(cur["L"], leave, pan_w, var), _pan_rows(cur["R"], leave, pan_w, var)
     base = 64 + max(_pan_height(left_rows), _pan_height(right_rows), TILE + 6)
-    parts = [_text(width / 2, 38, balance.eq_text(cur["L"], cur["R"]), size=24, display=True)]
+    parts = [_text(width / 2, 38, balance.eq_text(cur["L"], cur["R"]).replace("x", var), size=24, display=True)]
     parts += _draw_pan(left_rows, 20, pan_w, base)
     parts += _draw_pan(right_rows, width - 20 - pan_w, pan_w, base)
     parts += [
@@ -522,22 +524,47 @@ def balance_svg(left, right, step: int = 1) -> str:
 
 
 # ---------- SLOPE: RISE OVER RUN ON A GRID ----------
-def slope_svg(x1, y1, x2, y2, step: int = 1) -> str:
-    width, unit, gx, gy = 540, 15, 120, 20
-    sx = lambda x: gx + (x + 10) * unit
-    sy = lambda y: gy + (10 - y) * unit
-    parts = [f'<defs><clipPath id="slope-grid"><rect x="{sx(-10)}" y="{sy(10)}" width="{20 * unit}" height="{20 * unit}" />'
+GRID_UNIT, GRID_LEFT, GRID_TOP = 15, 120, 20
+
+
+def _gx(x):
+    return GRID_LEFT + (x + 10) * GRID_UNIT
+
+
+def _gy(y):
+    return GRID_TOP + (10 - y) * GRID_UNIT
+
+
+def _graph(x1, y1, x2, y2):
+    """A −10..10 grid with the line through two points drawn across it."""
+    unit = GRID_UNIT
+    parts = [f'<defs><clipPath id="line-grid"><rect x="{_gx(-10)}" y="{_gy(10)}" width="{20 * unit}" height="{20 * unit}" />'
              f'</clipPath></defs>']
     for i in range(-10, 11):
         color, w = (MUTED, 2) if i == 0 else (LINE, 1)
-        parts.append(f'<path d="M{sx(i)} {sy(-10)} V{sy(10)}" stroke="{color}" stroke-width="{w}" />')
-        parts.append(f'<path d="M{sx(-10)} {sy(i)} H{sx(10)}" stroke="{color}" stroke-width="{w}" />')
+        parts.append(f'<path d="M{_gx(i)} {_gy(-10)} V{_gy(10)}" stroke="{color}" stroke-width="{w}" />')
+        parts.append(f'<path d="M{_gx(-10)} {_gy(i)} H{_gx(10)}" stroke="{color}" stroke-width="{w}" />')
         if i and i % 5 == 0:
-            parts.append(_text(sx(i), sy(0) + 14, i, size=11, fill=MUTED, bold=True))
-            parts.append(_text(sx(0) - 5, sy(i) + 4, i, size=11, fill=MUTED, bold=True, anchor="end"))
+            parts.append(_text(_gx(i), _gy(0) + 14, i, size=11, fill=MUTED, bold=True))
+            parts.append(_text(_gx(0) - 5, _gy(i) + 4, i, size=11, fill=MUTED, bold=True, anchor="end"))
     dx, dy, k = x2 - x1, y2 - y1, 40
-    parts.append(f'<path d="M{sx(x1 - k * dx)} {sy(y1 - k * dy)} L{sx(x2 + k * dx)} {sy(y2 + k * dy)}" '
-                 f'stroke="{COOL}" stroke-width="3" clip-path="url(#slope-grid)" />')
+    parts.append(f'<path d="M{_gx(x1 - k * dx)} {_gy(y1 - k * dy)} L{_gx(x2 + k * dx)} {_gy(y2 + k * dy)}" '
+                 f'stroke="{COOL}" stroke-width="3" clip-path="url(#line-grid)" />')
+    return parts
+
+
+def _point(x, y, label, outside):
+    """A dot with its label on the `outside` side (−1 left, 1 right)."""
+    return (f'<circle cx="{_gx(x)}" cy="{_gy(y)}" r="6" fill="{INK}" stroke="white" stroke-width="2" />'
+            + _text(_gx(x) + 10 * outside, _gy(y) + 4, label, size=12, anchor="end" if outside < 0 else "start",
+                    bold=True, extra='paint-order="stroke" stroke="white" stroke-width="4"'))
+
+
+def slope_svg(x1, y1, x2, y2, step: int = 1) -> str:
+    width = 540
+    sx, sy = _gx, _gy
+    parts = _graph(x1, y1, x2, y2)
+    dx, dy = x2 - x1, y2 - y1
     if step >= 1 and dx:
         parts.append(f'<path d="M{sx(x1)} {sy(y1)} H{sx(x2)}" stroke="{ORANGE}" stroke-width="5" stroke-linecap="round" />')
         parts.append(_text((sx(x1) + sx(x2)) / 2, sy(y1) + (18 if dy > 0 else -8), "run", size=16, fill=ORANGE, display=True))
@@ -547,11 +574,7 @@ def slope_svg(x1, y1, x2, y2, step: int = 1) -> str:
                            display=True, anchor="start" if dx > 0 else "end"))
     # Each point's label sits on the far side from the other point, clear of the run and rise.
     for name, x, y, other_x in (("1st", x1, y1, x2), ("2nd", x2, y2, x1)):
-        outside = -1 if x < other_x else 1
-        parts.append(f'<circle cx="{sx(x)}" cy="{sy(y)}" r="6" fill="{INK}" stroke="white" stroke-width="2" />')
-        parts.append(_text(sx(x) + 10 * outside, sy(y) + 4, f"{name} ({x}, {y})", size=12,
-                           anchor="end" if outside < 0 else "start", bold=True,
-                           extra='paint-order="stroke" stroke="white" stroke-width="4"'))
+        parts.append(_point(x, y, f"{name} ({x}, {y})", -1 if x < other_x else 1))
     neg = lambda n: f"({n})" if n < 0 else str(n)
     if step == 1:
         lines = ["Run: how far across from the 1st point to the 2nd.",
@@ -560,6 +583,75 @@ def slope_svg(x1, y1, x2, y2, step: int = 1) -> str:
         lines = ["Rise: how far up or down from the 1st point to the 2nd.",
                  f"rise = {y2} − {neg(y1)}", "Slope = rise ÷ run. Going down counts as negative. Simplify at the end."]
     caption, bottom = _captions(lines, sy(-10) + 34, width)
+    return _svg(width, bottom + 2, parts + caption)
+
+
+# ---------- LINES: y = mx + b ----------
+def _signed(n) -> str:
+    n = Fraction(n)
+    return f"−{-n}" if n < 0 else str(n)
+
+
+def read_line_svg(m: str, b: int, ask: str) -> str:
+    """Which number in y = mx + b is which; the part being asked about is highlighted."""
+    from .line_eq import line_text
+    width = 540
+    parts = [_text(width / 2, 44, line_text(m, b), size=30, display=True),
+             _text(width / 2, 92, "y = m x + b", size=24, display=True, fill=MUTED)]
+    # A general tip about the sign, never this problem's own b.
+    rows = [("m", "the slope: the number in front of x. Just x means 1; −x means −1.", ORANGE),
+            ("b", "where it crosses the y-axis: the number on its own. A minus in front of it makes b negative.", PURPLE)]
+    y = 122
+    for letter, text, color in rows:
+        asked = letter == ask
+        lines = textwrap.wrap(text, 52)
+        height = 22 * len(lines) + 18
+        if asked:
+            parts.append(f'<rect x="20" y="{y}" width="{width - 40}" height="{height}" rx="10" fill="{MARK}" fill-opacity="0.35" />')
+        parts.append(_text(46, y + 30, letter, size=24, display=True, fill=color))
+        for i, line in enumerate(lines):
+            parts.append(_text(76, y + 27 + i * 22, line, size=15, anchor="start", bold=asked))
+        y += height + 8
+    return _svg(width, y + 10, parts)
+
+
+def intercept_svg(m: str, px: int, py: int, step: int = 1) -> str:
+    """Finding b: put a point into y = mx + b, solve on the scale, or walk back to the y-axis on the graph."""
+    m = Fraction(m)
+    width = 540
+    product = m * px  # whole, because the point's x is a multiple of the slope's bottom number
+    shown_px = f"({px})" if px < 0 else str(px)
+    if step == 1:
+        parts = [_text(width / 2, 38, "Every line is  y = m x + b", size=20, display=True, fill=MUTED),
+                 _text(width / 2, 88, f"{py} = {_signed(m)} × {shown_px} + b", size=30, display=True)]
+        lines = [f"Put in the slope m = {_signed(m)} and the point ({px}, {py}): x = {px} and y = {py}.",
+                 f"{_signed(m)} × {shown_px} = {_signed(product)}, so: {py} = {_signed(product)} + b",
+                 "Next: get b on its own."]
+        caption, bottom = _captions(lines, 132, width)
+        return _svg(width, bottom + 2, parts + caption)
+    if step == 2:
+        from .balance import K, X
+        return balance_svg([K(py)], [K(int(product)), X(1)], 1, var="b")
+    # Step 3: on the graph, walk from the point back to the y-axis in slope-sized steps.
+    run, rise = m.denominator, m.numerator
+    if px > 0:
+        run, rise = -run, -rise
+    steps = abs(px) // m.denominator
+    parts = _graph(px, py, px + run, py + rise)
+    x, y = px, py
+    for _ in range(steps):
+        parts.append(f'<path d="M{_gx(x)} {_gy(y)} H{_gx(x + run)}" stroke="{ORANGE}" stroke-width="4" stroke-linecap="round" />')
+        parts.append(f'<path d="M{_gx(x + run)} {_gy(y)} V{_gy(y + rise)}" stroke="{PURPLE}" stroke-width="4" stroke-linecap="round" />')
+        x, y = x + run, y + rise
+    parts.append(f'<circle cx="{_gx(0)}" cy="{_gy(y)}" r="11" fill="none" stroke="{MARK}" stroke-width="4" />')
+    parts.append(_text(_gx(0) + (16 if px < 0 else -16), _gy(y) - 12, "b = ?", size=16, display=True,
+                       anchor="start" if px < 0 else "end", extra='paint-order="stroke" stroke="white" stroke-width="4"'))
+    parts.append(_point(px, py, f"({px}, {py})", 1 if px > 0 else -1))
+    across = "left" if run < 0 else "right"
+    updown = "up" if rise > 0 else "down"
+    lines = [f"Or walk to the y-axis: each step is {abs(run)} {across} and {abs(rise)} {updown}.",
+             f"{steps} step{'s' if steps != 1 else ''} gets you to x = 0. The line crosses there: that's b."]
+    caption, bottom = _captions(lines, _gy(-10) + 34, width)
     return _svg(width, bottom + 2, parts + caption)
 
 
@@ -626,7 +718,7 @@ def hint_steps(hint) -> int:
         return max(1, len(balance.solve(hint["L"], hint["R"])) - 1)
     if kind == "fraction":
         return 2 if hint["d1"] != hint["d2"] else 1
-    return {"venn": 3, "percent": 2, "slope": 2}.get(kind, 1)
+    return {"venn": 3, "percent": 2, "slope": 2, "intercept": 3}.get(kind, 1)
 
 
 def build_svg(hint, step: int = 1) -> str:
@@ -647,4 +739,8 @@ def build_svg(hint, step: int = 1) -> str:
         return slope_svg(hint["x1"], hint["y1"], hint["x2"], hint["y2"], step)
     if kind == "fraction":
         return fraction_svg(hint["n1"], hint["d1"], hint["n2"], hint["d2"], step)
+    if kind == "read_line":
+        return read_line_svg(hint["m"], hint["b"], hint["ask"])
+    if kind == "intercept":
+        return intercept_svg(hint["m"], hint["px"], hint["py"], step)
     return ""

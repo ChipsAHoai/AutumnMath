@@ -137,6 +137,21 @@ class QuizProgressTests(unittest.TestCase):
         quiz.update_ui()
         quiz.answer_label.run_method.assert_called_with('focus')
 
+    def test_scratchpad_clears_for_each_new_problem_but_not_follow_ups(self):
+        quiz = self.quiz(ops=['lcm'])
+        quiz.scratchpad = Mock()
+        quiz.start()
+        self.assertEqual(quiz.scratchpad.run_method.call_count, 1)
+        for _ in range(2):  # LCM's two follow-ups build on the same work, so it stays
+            self.answer_correctly(quiz)
+            quiz.advance_problem()
+            self.assertEqual(quiz.scratchpad.run_method.call_count, 1)
+        self.answer_correctly(quiz)
+        quiz.advance_problem()  # on to the next problem
+        self.assertEqual(quiz.current_index, 1)
+        self.assertEqual(quiz.scratchpad.run_method.call_count, 2)
+        quiz.scratchpad.run_method.assert_called_with('clear')
+
     def test_questions_show_stacked_fractions(self):
         stacked = application['stacked_fractions']
         self.assertEqual(stacked('5/6 + 1/3 = ?'),
@@ -570,6 +585,47 @@ class QuizProgressTests(unittest.TestCase):
                         self.assertNotIn(f'x = {answer}', texts)
                         self.assertNotIn(f'{answer} = x', texts)
                 self.assertEqual(quiz.hint_level, steps)
+
+    def test_line_equations_are_answered_in_pieces(self):
+        import re
+        import xml.dom.minidom
+        from fractions import Fraction
+        import handlers.line_eq as line_eq
+        import handlers.visuals as visuals
+        for _ in range(300):
+            quiz = SimpleNamespace(clear_plot=lambda: None)
+            line_eq.generate(quiz)
+            follow_up = quiz.follow_up_questions[0]
+            m, b = Fraction(quiz.solution), Fraction(follow_up['solution'])
+            points = [tuple(map(int, p)) for p in re.findall(r'\((-?\d+), (-?\d+)\)', quiz.question)]
+            for x, y in points:  # both points really are on y = mx + b
+                self.assertEqual(m * x + b, y, quiz.question)
+            if not points:
+                self.assertIn(line_eq.line_text(m, b), quiz.question)
+            for hint in (quiz.hint, follow_up['hint']):
+                for step in range(1, visuals.hint_steps(hint) + 1):
+                    svg = visuals.build_svg(hint, step)
+                    xml.dom.minidom.parseString(svg)
+                    if hint['kind'] == 'intercept':  # the b hint never says what b is
+                        self.assertNotIn(f'b = {line_eq.signed(b)}', re.findall(r'>([^<]+)</text>', svg))
+
+    def test_line_equation_follow_up_switches_hint_and_shows_the_equation(self):
+        import handlers.line_eq as line_eq
+        quiz = self.quiz(ops=['line_eq'])
+        with patch.object(line_eq.random, 'random', return_value=0.9):
+            quiz.start()
+        self.assertEqual(quiz.hint['kind'], 'slope')
+        self.answer_correctly(quiz)
+        quiz.advance_problem()
+        self.assertEqual(quiz.hint['kind'], 'intercept')
+        self.assertTrue(quiz.after_correct.startswith('✅ So the line is y = '))
+        # A refresh keeps the follow-up's hint and closing message.
+        restored = self.quiz(ops=['line_eq'])
+        restored.restore_progress(copy.deepcopy(self.storage['test']))
+        self.assertEqual((restored.hint, restored.after_correct), (quiz.hint, quiz.after_correct))
+        restored.input_text = str(restored.solution)
+        restored.check_answer()
+        self.assertEqual(restored.feedback, quiz.after_correct)
 
     def test_times_table_practice(self):
         quiz = MathQuizGame(total_problems=200, allowed_ops=['*'], name='test',

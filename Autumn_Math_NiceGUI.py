@@ -153,7 +153,7 @@ LEARN_PAGES = {
     "percent": "percent.html",
     "lcm": "lcm-gcf.html", "gcf": "lcm-gcf.html",
     "alg": "algebra.html", "multi_alg": "algebra.html", "hard_alg": "algebra.html",
-    "slope": "slope.html",
+    "slope": "slope.html", "line_eq": "slope.html",
 }
 
 
@@ -323,7 +323,7 @@ TOPIC_NAMES = {
     "+": "adding", "-": "subtracting", "*": "times tables", "x": "times tables", "÷": "dividing",
     "fraction": "fractions", "alg": "equations", "multi_alg": "equations", "hard_alg": "harder equations",
     "mix": "mixed problems", "parens": "parentheses", "decimal_multi_div": "decimals", "slope": "slope",
-    "ruler": "inch ruler", "cm_ruler": "centimeter ruler", "lcm": "LCM", "gcf": "GCF", "percent": "percents",
+    "ruler": "inch ruler", "cm_ruler": "centimeter ruler", "lcm": "LCM", "gcf": "GCF", "percent": "percents", "line_eq": "line equations",
 }
 
 
@@ -373,6 +373,7 @@ class MathQuizGame:
         self.start_time = None
         self.answer_pending = False
         self.follow_up_questions = []
+        self.after_correct = None  # a follow-up's closing message, e.g. the finished line equation
         self.slope_points = None
         self.hint = None  # picture hint data, drawn by handlers.visuals
         self.hint_level = 0  # how many hint steps are showing
@@ -418,6 +419,7 @@ class MathQuizGame:
         self.hint_button = None
         self.learn_button = None
         self.scratch_problem = None  # problem pinned above the big scratchpad
+        self.scratchpad = None
         self.scratch_full = False
         self.hint_container = None
         self.end_card = None
@@ -451,7 +453,11 @@ class MathQuizGame:
             self.start_button.update()
 
     def generate_problem(self):
+        # A new problem gets a clean scratchpad; follow-up questions keep the work they build on.
+        if self.scratchpad:
+            self.scratchpad.run_method('clear')
         self.follow_up_questions = []
+        self.after_correct = None
         self.hint = None
         self.hint_level = 0
         self.symbol = random.choice(self.allowed_ops)
@@ -578,7 +584,7 @@ class MathQuizGame:
         self.feedback_color = None
 
         try:
-            if self.symbol in ["fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler", "percent", "hard_alg"]:
+            if self.symbol in ["fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler", "percent", "hard_alg", "line_eq"]:
                 if self.symbol == "ruler":
                     if "/" not in user_input:
                         raise ValueError("Fraction required for ruler")
@@ -629,14 +635,14 @@ class MathQuizGame:
             knockout = self.enemy_hp == 0
             if knockout:
                 self.defeated += 1
-                self.feedback = f"✅ Correct! You beat the {self.enemy}!"
+                self.feedback = self.after_correct or f"✅ Correct! You beat the {self.enemy}!"
             else:
                 self.feedback = f"✅ Correct! You hit the {self.enemy}! Keep going!"
             self.save_progress()
             self.input_text = ""
             self.update_ui()          # immediate visual feedback
             fight = self.show_battle(player_attacks=True, knockout=knockout,
-                                     caption=f"You beat the {self.enemy}! 🎉" if knockout
+                                     caption=(self.after_correct or f"You beat the {self.enemy}!") + " 🎉" if knockout
                                      else f"You hit the {self.enemy}! 💥")
 
             # pause so the attack (and knockout) can play before the next question
@@ -734,6 +740,8 @@ class MathQuizGame:
             self.question = follow_up["question"]
             solution = follow_up["solution"]
             self.solution = Fraction(solution) if isinstance(solution, str) else solution
+            self.hint = follow_up.get("hint", self.hint)
+            self.after_correct = follow_up.get("after")
             self.hint_level = 0
             self.save_progress()
             self.update_ui()
@@ -759,6 +767,7 @@ class MathQuizGame:
             "follow_up_questions": list(self.follow_up_questions),
             "hint": self.hint,
             "hint_level": self.hint_level,
+            "after_correct": self.after_correct,
             "life": self.life,
             "enemy": self.enemy,
             "enemy_hp": self.enemy_hp,
@@ -779,6 +788,7 @@ class MathQuizGame:
         self.follow_up_questions = list(saved.get("follow_up_questions", []))
         self.hint = saved.get("hint")
         self.hint_level = saved.get("hint_level", 1 if saved.get("hint_shown") else 0)
+        self.after_correct = saved.get("after_correct")
         if not self.hint:
             # Saved before picture hints existed: rebuild one from the question text.
             if self.symbol in ("+", "-", "*", "x"):
@@ -1180,7 +1190,7 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                         "am-scratch-only am-btn am-cool text-lg")
                 # Hint pictures are wide, so they show here, right where she's working.
                 quiz.hint_container = create_svg_container("max-w-full overflow-x-auto")
-                Scratchpad().classes('w-full')
+                quiz.scratchpad = Scratchpad().classes('w-full')
                 # Answer from the big scratchpad without the on-screen keyboard covering the work.
                 with ui.row().classes("am-scratch-only items-center gap-2 w-full justify-center"):
                     ui.label().bind_text_from(quiz, 'input_text', backward=lambda t: t or " ").classes(
@@ -1216,7 +1226,7 @@ app.add_static_files('/learn', LEARN_DIR)
 # ---------- REGISTER QUIZ PAGES ----------
 # make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
 #(15, "autumn", ["lcm", "gcf", "percent"])
-make_quiz_page(15, "autumn", ["lcm", "gcf", "percent", "hard_alg"])
+make_quiz_page(15, "autumn", ["lcm", "gcf", "percent", "hard_alg", "line_eq"])
 # Molly practices the 3s and 4s: each problem picks one table, times 1 through 10, on either side.
 make_quiz_page(100, "molly", ["*"], times_table=[3,4], multiplication_range=(1, 10))
 
