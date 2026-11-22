@@ -56,6 +56,18 @@ class KidFriendlyHelperTests(unittest.TestCase):
         self.assertEqual(format_duration(218943.52), '60h 49m')
 
 
+class LearnPageTests(unittest.TestCase):
+    def test_every_learn_page_exists_and_links_all_topics(self):
+        topics = application['LEARN_TOPICS']
+        self.assertLessEqual(set(application['LEARN_PAGES'].values()), set(topics))
+        for page in topics:
+            with self.subTest(page=page):
+                html = (application['LEARN_DIR'] / page).read_text()
+                self.assertTrue(html.startswith('<!doctype html>'))
+                for other in topics:
+                    self.assertIn(f'href="{other}"', html)
+
+
 class QuizProgressTests(unittest.TestCase):
     def setUp(self):
         self.storage = {}
@@ -100,6 +112,38 @@ class QuizProgressTests(unittest.TestCase):
         key(quiz, '9')
         self.assertEqual(quiz.input_text, '')
         self.ui.timer.assert_called_once()
+
+    def test_keypad_delete_erases_one_character(self):
+        quiz = self.quiz()
+        quiz.start()
+        quiz.answer_label = Mock()
+        for char in '125':
+            application['add_char'](quiz, char)
+        application['delete_char'](quiz)
+        self.assertEqual(quiz.input_text, '12')
+        quiz.answer_label.set_value.assert_called_with('12')
+
+    def test_big_scratchpad_keeps_the_problem_and_the_keyboard_down(self):
+        quiz = self.quiz(ops=['fraction'])
+        quiz.start()
+        quiz.answer_label = Mock()
+        quiz.scratch_problem = Mock()
+        quiz.question = '5/6 + 1/3 = ? (simplify if possible)'  # random ones can simplify to whole numbers
+        quiz.scratch_full = True
+        quiz.update_ui()
+        quiz.answer_label.run_method.assert_not_called()  # focusing would pop up the iPad keyboard
+        self.assertIn('am-frac', quiz.scratch_problem.set_content.call_args[0][0])
+        quiz.scratch_full = False
+        quiz.update_ui()
+        quiz.answer_label.run_method.assert_called_with('focus')
+
+    def test_questions_show_stacked_fractions(self):
+        stacked = application['stacked_fractions']
+        self.assertEqual(stacked('5/6 + 1/3 = ?'),
+                         '<span class="am-frac"><span>5</span><span>6</span></span> + '
+                         '<span class="am-frac"><span>1</span><span>3</span></span> = ?')
+        self.assertEqual(stacked('3 × 4 = ?'), '3 × 4 = ?')
+        self.assertIn('&lt;', stacked('<b>'))
 
     def test_keyboard_ignores_shortcuts_repeats_and_keyup(self):
         quiz = self.quiz()
@@ -479,7 +523,7 @@ class QuizProgressTests(unittest.TestCase):
             quiz.check_answer()
             steps.append(visuals.build_svg(quiz.hint, quiz.hint_level))
         self.assertEqual(quiz.hint_level, 3)
-        self.assertIn('Step 1', steps[0])
+        self.assertIn('Equal pieces or groups means the GCF.', steps[0])
         self.assertNotIn(factored, steps[0])
         self.assertIn(factored, steps[1])
         self.assertNotIn('GCF: multiply', steps[1])
@@ -489,8 +533,43 @@ class QuizProgressTests(unittest.TestCase):
     def test_venn_hint_puts_shared_factors_in_the_middle(self):
         import handlers.visuals as visuals
         self.assertEqual(visuals.prime_factors(96), [2, 2, 2, 2, 2, 3])
-        svg = visuals.factor_venn_svg(64, 81)
-        self.assertIn('only 1', svg)
+        svg = visuals.factor_bins_svg(64, 81)
+        self.assertIn('>none</text>', svg)  # nothing in the shared bin
+
+    def test_times_table_list_practices_each_table(self):
+        quiz = MathQuizGame(total_problems=200, allowed_ops=['*'], name='test',
+                            multiplication_range=(1, 10), times_table=[3, 4])
+        quiz.start()
+        tables = set()
+        for _ in range(200):
+            quiz.generate_problem()
+            a, b = quiz.hint['a'], quiz.hint['b']
+            self.assertTrue({3, 4} & {a, b})
+            self.assertEqual(quiz.solution, a * b)
+            tables |= {3, 4} & {a, b}
+        self.assertEqual(tables, {3, 4})
+
+    def test_new_hints_step_through_without_the_answer(self):
+        import re
+        import xml.dom.minidom
+        import handlers.visuals as visuals
+        for op, kind in (('hard_alg', 'scale'), ('multi_alg', 'scale'), ('slope', 'slope'),
+                         ('fraction', 'fraction'), ('*', 'dots')):
+            for _ in range(20):
+                quiz = self.quiz(ops=[op])
+                quiz.start()
+                self.assertEqual(quiz.hint['kind'], kind)
+                steps = visuals.hint_steps(quiz.hint)
+                for _ in range(steps):
+                    quiz.show_hint()
+                    svg = visuals.build_svg(quiz.hint, quiz.hint_level)
+                    xml.dom.minidom.parseString(svg)
+                    if kind == 'scale':
+                        answer = str(quiz.solution).replace('-', '−')
+                        texts = re.findall(r'>([^<]+)</text>', svg)
+                        self.assertNotIn(f'x = {answer}', texts)
+                        self.assertNotIn(f'{answer} = x', texts)
+                self.assertEqual(quiz.hint_level, steps)
 
     def test_times_table_practice(self):
         quiz = MathQuizGame(total_problems=200, allowed_ops=['*'], name='test',
@@ -648,6 +727,20 @@ class QuizProgressTests(unittest.TestCase):
         quiz.end_stars_label.set_text.assert_called_once_with('⭐⭐')
         quiz.start()
         self.assertFalse(quiz.end_card.visible)
+
+    def test_learn_button_opens_the_matching_page(self):
+        quiz = self.quiz(ops=['percent'])
+        quiz.learn_button = SimpleNamespace(visible=False)
+        quiz.update_ui()
+        self.assertFalse(quiz.learn_button.visible)
+        quiz.start()
+        self.assertTrue(quiz.learn_button.visible)
+        self.ui.navigate = Mock()
+        quiz.open_learn_page()
+        self.ui.navigate.to.assert_called_once_with('/learn/percent.html', new_tab=True)
+        quiz.symbol = 'decimal_multi_div'
+        quiz.update_ui()
+        self.assertFalse(quiz.learn_button.visible)
 
     def test_refresh_after_final_answer_finishes_quiz(self):
         quiz = self.quiz(total=1)

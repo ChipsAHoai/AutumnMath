@@ -33,7 +33,7 @@ const canvas = {
   hasPointerCapture: id => captured.has(id),
   releasePointerCapture: id => captured.delete(id),
 };
-const pad = {$refs: {canvas}};
+const pad = {$refs: {canvas}, ...component.data()};
 for (const [name, method] of Object.entries(component.methods)) pad[name] = method.bind(pad);
 component.mounted.call(pad);
 for (const type of ['touchstart', 'touchmove']) {
@@ -59,6 +59,13 @@ canvas.clientWidth = 200;
 canvas.clientHeight = 150;
 pad.resize();
 assert(pad.strokes[0][0][0] === 0.25, 'Resize preserves normalized notes');
+pad.color = '#dc2626';
+pad.startStroke(event('pointerdown', 4));
+pad.endStroke(event('pointerup', 4));
+assert(pad.strokes[1].color === '#dc2626' && pad.strokes[0].color === '#172554', 'Each stroke keeps its color');
+pad.redraw();
+assert(ctx.strokeStyle === '#dc2626', 'Redraw paints strokes in their own colors');
+pad.undo();
 pad.startStroke(event('pointerdown', 3));
 pad.endStroke(event('pointercancel', 3));
 assert(pad.pointer === null, 'Interrupted touches release drawing state');
@@ -69,4 +76,4 @@ assert(pad.strokes.length === 0, 'Clear removes notes');
 component.beforeUnmount.call(pad);
 assert(disconnected, 'Resize observer is cleaned up');
 assert(listeners.size === 0, 'Touch listeners are cleaned up');
-print('Scratchpad drawing, resize, cancellation, undo, clear, and cleanup checks passed.');
+print('Scratchpad drawing, colors, resize, cancellation, undo, clear, and cleanup checks passed.');

@@ -1,4 +1,4 @@
-from . import arithmetic, fraction, alg, mix, multi_alg, parens, decimal_multi_div, slope, ruler, cm_ruler
+from . import arithmetic, fraction, alg, mix, multi_alg, hard_alg, parens, decimal_multi_div, slope, ruler, cm_ruler
 from . import common_multiples, percent, visuals
 
 registry = {
@@ -14,6 +14,7 @@ registry = {
     "alg": alg.generate,
     "mix": mix.generate,
     "multi_alg": multi_alg.generate,
+    "hard_alg": hard_alg.generate,
     "parens": parens.generate,
     "decimal_multi_div": decimal_multi_div.generate,
     "slope": slope.generate,

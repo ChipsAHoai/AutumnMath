@@ -1,5 +1,7 @@
 import random
 
+from .balance import X, K
+
 
 def generate(quiz):
     x_val = random.randint(1, 20)
@@ -11,4 +13,7 @@ def generate(quiz):
     quiz.d = right - left
     quiz.solution = x_val
     quiz.question = f"{quiz.a}x + {quiz.b} = {quiz.c}x - {quiz.d}"
+    left = [X(quiz.a)] + ([K(quiz.b)] if quiz.b else [])
+    right = [X(quiz.c)] + ([K(-quiz.d)] if quiz.d else [])
+    quiz.hint = {"kind": "scale", "L": left, "R": right}
     quiz.clear_plot()

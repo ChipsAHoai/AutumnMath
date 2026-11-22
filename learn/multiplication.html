@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seeing Multiplication</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: same graph-paper column as the other mocks; rows of dots alternate orange and purple like the app's hint. */
+:root {
+  --paper: #f8fafd;
+  --gridline: #e2e9f3;
+  --surface: #ffffff;
+  --ink: #1b2737;
+  --muted: #5b6a7e;
+  --line: #cfd9e6;
+  --mark: #ffc83d;
+  --on-mark: #1b2737;
+  --cool: #1d6a86;
+  --cool-soft: #e3f1f6;
+  --a: #e8761f;
+  --b: #7650d0;
+  --good: #2f8a57;
+  --bad: #c8394d;
+  --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --d: 20px;
+  --g: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+    --line: #2d3a4d; --mark: #f0b429; --cool: #62b6d6; --cool-soft: #16303b;
+    --a: #f39a52; --b: #a88bf0; --good: #6cc596; --bad: #f07082; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+  --line: #2d3a4d; --mark: #f0b429; --cool: #62b6d6; --cool-soft: #16303b;
+  --a: #f39a52; --b: #a88bf0; --good: #6cc596; --bad: #f07082; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--gridline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font: 17px/1.55 var(--body);
+}
+.wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+h1, h2 { font-family: var(--display); font-weight: 800; line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.4rem, 7vw, 3.4rem); }
+h1 .hl { background: linear-gradient(transparent 55%, var(--mark) 55%); padding: 0 .1em; }
+h2 { font-size: 1.6rem; }
+p { margin: 0; }
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 60ch; }
+.eyebrow { font: 700 .78rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--cool); }
+.ca { color: var(--a); font-weight: 700; }
+.cb { color: var(--b); font-weight: 700; }
+
+.note { background: var(--cool-soft); border-radius: 14px; padding: 20px 22px; display: grid; gap: 10px; }
+.note h3 { margin: 0; font: 700 1.05rem var(--body); }
+.note ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+.bench {
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px;
+  padding: 24px; display: grid; gap: 18px; min-width: 0;
+}
+.bench header { display: grid; gap: 6px; }
+.say { max-width: 62ch; }
+
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button {
+  font: 700 .95rem var(--body); color: var(--ink); background: var(--surface);
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--cool); }
+button.primary { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+button[aria-pressed="true"] { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
+
+.sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+.slider { display: grid; gap: 6px; }
+.slider label { font-weight: 700; display: flex; justify-content: space-between; gap: 12px; }
+.slider output { color: var(--cool); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--cool); }
+
+.eq {
+  font: 800 clamp(1.4rem, 5vw, 2rem)/1.25 var(--display); text-align: center;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.status {
+  background: var(--paper); border-radius: 12px; padding: 14px 16px;
+  display: grid; gap: 6px; font-variant-numeric: tabular-nums;
+}
+.status .big { font: 800 1.35rem var(--display); }
+
+/* dots */
+.stage { display: grid; justify-items: center; overflow-x: auto; padding: 4px; }
+.dot { width: var(--d); height: var(--d); border-radius: 50%; flex: none; }
+.dot.A { background: var(--a); }
+.dot.B { background: var(--b); }
+.dot.ghost { background: transparent; border: 2px dashed var(--bad); }
+
+.lines { display: grid; gap: 8px; }
+.line { display: flex; align-items: center; gap: 10px; }
+.bag { display: flex; gap: var(--g); }
+.lines.bags .bag { border: 2px dashed var(--line); border-radius: 999px; padding: 5px 8px; }
+.lines.tight { gap: var(--g); }
+.count { font: 800 1rem var(--display); min-width: 2.5em; font-variant-numeric: tabular-nums; color: var(--muted); }
+.count.last { color: var(--ink); background: var(--mark); color: var(--on-mark); border-radius: 8px; padding: 0 6px; text-align: center; }
+.part-gap { height: 10px; }
+.ghostnote { color: var(--bad); font-weight: 700; font-size: .9rem; }
+
+/* turning */
+.turnbox { display: grid; place-items: center; overflow: hidden; }
+.grid { display: grid; gap: var(--g); transition: transform .6s ease-in-out; }
+.grid.turning { transform: rotate(90deg); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { min-width: 3.2em; }
+
+
+@media (max-width: 600px) {
+  :root { --d: 16px; --g: 4px; }
+  .bench { padding: 18px; }
+  .sliders { grid-template-columns: minmax(0, 1fr); }
+  .lines.bags .bag { padding: 4px 6px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Page basics (the mocks got these from the artifact viewer). */
+body { margin: 0; }
+[hidden] { display: none !important; }
+.topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.topics a {
+  font: 700 .9rem var(--body); color: var(--ink); text-decoration: none;
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 12px; background: var(--surface);
+}
+.topics a[aria-current="page"] { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+details.note summary { font-weight: 700; cursor: pointer; }
+details.note[open] summary { margin-bottom: 4px; }
+/* Same title highlight as the app: an underline pulled up behind the letters (a background sits below Baloo's descent). */
+h1 .hl {
+  background: none; padding: 0;
+  text-decoration: underline; text-decoration-color: var(--mark); text-decoration-thickness: .38em;
+  text-underline-offset: -.28em; text-decoration-skip-ink: none;
+}
+/* 5/6 drawn as 5 over a bar over 6 (see the script at the end of the page). */
+.frac {
+  display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle;
+  line-height: 1; font-size: .85em; margin: 0 .12em; font-variant-numeric: tabular-nums;
+}
+.frac > span:first-child { border-bottom: .09em solid currentColor; padding: 0 .12em .08em; }
+.frac > span:last-child { padding-top: .08em; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header style="display:grid;gap:12px">
+    <nav class="topics" aria-label="Topics"><a href="multiplication.html" aria-current="page">Multiplication</a><a href="fractions.html">Fractions</a><a href="percent.html">Percents</a><a href="lcm-gcf.html">LCM & GCF</a><a href="algebra.html">Equations</a><a href="slope.html">Slope</a></nav>
+    <h1>Seeing <span class="hl">Multiplication</span></h1>
+    <p class="lede">Multiplying is counting equal groups fast. Line the groups up in rows and you get a rectangle of dots. Every trick for the times tables is a way of cutting that rectangle into pieces you already know.</p>
+  </header>
+
+  <details class="note"><summary>For grown-ups: Why times tables are hard</summary>
+    <ul>
+      <li><strong>Memorizing 144 separate facts feels endless.</strong> Turning the rectangle around cuts that almost in half, and the easy tables (×1, ×2, ×5, ×10) cover a lot of the rest.</li>
+      <li><strong>Skip-counting from the start is slow</strong> for 7s, 8s and 12s. Splitting into known pieces is faster: 7 × 8 = 5 × 8 + 2 × 8.</li>
+      <li><strong>The app's hint already draws rows of dots and skip-counts.</strong> This page adds the steps that come after that.</li>
+    </ul>
+  </details>
+
+  <!-- Step 1 -->
+  <section class="bench" aria-labelledby="s1">
+    <header>
+      <span class="eyebrow">Step 1</span>
+      <h2 id="s1">Equal groups make rows</h2>
+      <p class="say"><strong>3 × 4</strong> means 3 groups with 4 in each. Put each group in a row and count by the group size down the side.</p>
+    </header>
+    <div class="sliders">
+      <div class="slider">
+        <label for="s1a">Groups <output id="s1aout">3</output></label>
+        <input type="range" id="s1a" min="1" max="12" value="3">
+      </div>
+      <div class="slider">
+        <label for="s1b">In each group <output id="s1bout">4</output></label>
+        <input type="range" id="s1b" min="1" max="12" value="4">
+      </div>
+    </div>
+    <div class="row" role="group" aria-label="How to show the groups">
+      <button id="s1bags" aria-pressed="true">Show as bags</button>
+      <button id="s1rows" aria-pressed="false">Show as rows</button>
+    </div>
+    <div class="stage" id="s1stage"></div>
+    <p class="eq" id="s1eq"></p>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="bench" aria-labelledby="s2">
+    <header>
+      <span class="eyebrow">Step 2</span>
+      <h2 id="s2">Turn it around</h2>
+      <p class="say">Turn the rectangle on its side. Same dots, so the same answer. If she knows 3 × 8, she also knows 8 × 3.</p>
+    </header>
+    <p class="eq" id="s2eq"></p>
+    <div class="turnbox" id="s2box"><div class="grid" id="s2grid"></div></div>
+    <div class="row">
+      <button class="primary" id="s2turn">Turn it ↻</button>
+      <button id="s2new">New fact</button>
+    </div>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="bench" aria-labelledby="s3">
+    <header>
+      <span class="eyebrow">Step 3</span>
+      <h2 id="s3">Split it into facts you know</h2>
+      <p class="say">Don't know 7 × 8? Cut the rows into two pieces you do know, then add them. Try cutting at 5 or 2: those are the easy ones.</p>
+    </header>
+    <div class="sliders">
+      <div class="slider">
+        <label for="s3a">Rows <output id="s3aout">7</output></label>
+        <input type="range" id="s3a" min="2" max="12" value="7">
+      </div>
+      <div class="slider">
+        <label for="s3b">In each row <output id="s3bout">8</output></label>
+        <input type="range" id="s3b" min="1" max="12" value="8">
+      </div>
+    </div>
+    <div class="slider">
+      <label for="s3cut">Cut after row <output id="s3cutout">5</output></label>
+      <input type="range" id="s3cut" min="1" max="6" value="5">
+    </div>
+    <div class="stage" id="s3stage"></div>
+    <div class="status" id="s3status"></div>
+  </section>
+
+  <!-- Step 4 -->
+  <section class="bench" aria-labelledby="s4">
+    <header>
+      <span class="eyebrow">Step 4</span>
+      <h2 id="s4">A trick for every table</h2>
+      <p class="say">Pick a times table. Each one is built from the 1s, 2s, 5s or 10s.</p>
+    </header>
+    <div class="chips" id="s4tables" role="group" aria-label="Times table"></div>
+    <div class="slider">
+      <label for="s4n">Times <output id="s4nout">7</output></label>
+      <input type="range" id="s4n" min="1" max="12" value="7">
+    </div>
+    <p class="say" id="s4trick" style="font-weight:700"></p>
+    <div class="stage" id="s4stage"></div>
+    <div class="status" id="s4status"></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* rows: array of {n, cls, ghost} — one entry per row of dots. */
+function linesHTML(rows, cols, { bags = false, counts = true, gapsAfter = [] } = {}) {
+  let running = 0;
+  const out = rows.map((r, i) => {
+    if (!r.ghost) running += cols;
+    const dots = `<span class="dot ${r.ghost ? "ghost" : r.cls}"></span>`.repeat(cols);
+    const last = i === rows.length - 1 || rows.slice(i + 1).every((x) => x.ghost);
+    const label = counts && !r.ghost ? `<span class="count${last ? " last" : ""}">${running}</span>` : "";
+    const gap = gapsAfter.includes(i) ? '<div class="part-gap"></div>' : "";
+    return `<div class="line"><span class="bag">${dots}</span>${label}</div>${gap}`;
+  });
+  return `<div class="lines ${bags ? "bags" : "tight"}">${out.join("")}</div>`;
+}
+const alt = (n) => Array.from({ length: n }, (_, i) => ({ cls: i % 2 ? "B" : "A" }));
+
+/* Step 1 */
+let s1bags = true;
+function s1() {
+  const a = +$("s1a").value, b = +$("s1b").value;
+  $("s1aout").textContent = a;
+  $("s1bout").textContent = b;
+  $("s1stage").innerHTML = linesHTML(alt(a), b, { bags: s1bags });
+  const counting = Array.from({ length: a }, (_, i) => (i + 1) * b).join(", ");
+  $("s1eq").innerHTML = `${a} groups of ${b} = ${a} × ${b} = ${a * b}<br><span style="font-size:1rem;color:var(--muted)">Count by ${b}s: ${counting}</span>`;
+}
+$("s1a").addEventListener("input", s1);
+$("s1b").addEventListener("input", s1);
+$("s1bags").onclick = () => { s1bags = true; $("s1bags").setAttribute("aria-pressed", true); $("s1rows").setAttribute("aria-pressed", false); s1(); };
+$("s1rows").onclick = () => { s1bags = false; $("s1rows").setAttribute("aria-pressed", true); $("s1bags").setAttribute("aria-pressed", false); s1(); };
+s1();
+
+/* Step 2: rotate, then settle into the turned-around rectangle */
+let s2 = { a: 3, b: 8 };
+function s2Draw() {
+  const { a, b } = s2;
+  const grid = $("s2grid");
+  grid.classList.remove("turning");
+  grid.style.gridTemplateColumns = `repeat(${b}, var(--d))`;
+  // Color by original row; once turned, the old rows are the new columns.
+  const dots = [];
+  for (let r = 0; r < a; r++) for (let c = 0; c < b; c++) {
+    dots.push(`<span class="dot ${(s2.turned ? s2.origA - 1 - c : r) % 2 ? "B" : "A"}"></span>`);
+  }
+  grid.innerHTML = dots.join("");
+  const big = Math.max(a, b);
+  $("s2box").style.minHeight = `calc(${big} * var(--d) + ${big - 1} * var(--g) + 8px)`;
+  $("s2eq").innerHTML = `${a} rows of ${b} = <span class="ca">${a} × ${b}</span> = ${a * b}`;
+}
+function s2Turn() {
+  const grid = $("s2grid");
+  grid.classList.add("turning");
+  setTimeout(() => {
+    const was = s2;
+    s2 = { a: was.b, b: was.a, turned: !was.turned, origA: was.turned ? was.origA : was.a };
+    s2Draw();
+    $("s2eq").innerHTML = `${s2.a} rows of ${s2.b} = <span class="cb">${s2.a} × ${s2.b}</span> = ${s2.a * s2.b}<br><span style="font-size:1rem;color:var(--muted)">Same dots as ${s2.b} × ${s2.a}, so the same answer.</span>`;
+  }, reduceMotion ? 0 : 620);
+}
+$("s2turn").onclick = s2Turn;
+$("s2new").onclick = () => {
+  let a, b;
+  do { a = 2 + Math.floor(Math.random() * 7); b = 3 + Math.floor(Math.random() * 8); } while (a === b);
+  s2 = { a, b };
+  s2Draw();
+};
+s2Draw();
+
+/* Step 3: cut the rows into two known facts */
+function s3() {
+  const a = +$("s3a").value, b = +$("s3b").value;
+  const cut = $("s3cut");
+  cut.max = a - 1;
+  if (+cut.value > a - 1) cut.value = a - 1;
+  const k = +cut.value;
+  $("s3aout").textContent = a;
+  $("s3bout").textContent = b;
+  $("s3cutout").textContent = k;
+  const rows = Array.from({ length: a }, (_, i) => ({ cls: i < k ? "A" : "B" }));
+  $("s3stage").innerHTML = linesHTML(rows, b, { gapsAfter: [k - 1] });
+  const easy = (n) => [1, 2, 5, 10].includes(n);
+  $("s3status").innerHTML = `
+    <p class="big"><span class="ca">${k} × ${b} = ${k * b}</span> + <span class="cb">${a - k} × ${b} = ${(a - k) * b}</span></p>
+    <p class="big">${a} × ${b} = ${k * b} + ${(a - k) * b} = ${a * b}</p>
+    <p>${easy(k) && easy(a - k) ? "Both pieces are easy facts. Nice cut!" : "Try moving the cut so both pieces are 1s, 2s, 5s or 10s."}</p>`;
+}
+["s3a", "s3b", "s3cut"].forEach((id) => $(id).addEventListener("input", s3));
+s3();
+
+/* Step 4: one trick per table. parts are row counts; minus means the last group is taken away. */
+const TRICKS = {
+  2: { say: "Double it.", parts: [1, 1] },
+  3: { say: "Double it, then add one more group.", parts: [2, 1] },
+  4: { say: "Double it, then double again.", parts: [2, 2] },
+  5: { say: "Count by 5s, or find 10 groups and take half.", parts: [5] },
+  6: { say: "5 groups, plus one more group.", parts: [5, 1] },
+  7: { say: "5 groups, plus 2 groups.", parts: [5, 2] },
+  8: { say: "Double the 4s: 4 groups and 4 groups.", parts: [4, 4] },
+  9: { say: "10 groups, then take one group away.", parts: [10], minus: 1 },
+  10: { say: "Put a 0 on the end.", parts: [10] },
+  11: { say: "10 groups, plus one more group.", parts: [10, 1] },
+  12: { say: "10 groups, plus 2 groups.", parts: [10, 2] },
+};
+let table = 3;
+Object.keys(TRICKS).forEach((t) => {
+  const b = document.createElement("button");
+  b.textContent = `× ${t}`;
+  b.dataset.t = t;
+  b.onclick = () => { table = +t; s4(); };
+  $("s4tables").appendChild(b);
+});
+function s4() {
+  const n = +$("s4n").value;
+  const tr = TRICKS[table];
+  $("s4nout").textContent = n;
+  $("s4tables").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.t === table));
+  $("s4trick").textContent = `${table}s trick: ${tr.say}`;
+  const rows = [], gaps = [];
+  tr.parts.forEach((p, j) => {
+    for (let i = 0; i < p; i++) rows.push({ cls: j % 2 ? "B" : "A" });
+    if (j < tr.parts.length - 1) gaps.push(rows.length - 1);
+  });
+  if (tr.minus) rows[rows.length - 1].ghost = true;
+  $("s4stage").innerHTML = linesHTML(rows, n, { gapsAfter: gaps }) +
+    (tr.minus ? `<p class="ghostnote">The dashed row is the group taken away.</p>` : "");
+  const pieces = tr.parts.map((p, j) => `<span class="${j % 2 ? "cb" : "ca"}">${p} × ${n}</span>`);
+  const values = tr.parts.map((p) => p * n);
+  let lines;
+  if (tr.minus) {
+    lines = `<p class="big">${table} × ${n} = ${pieces[0]} − ${n} = ${values[0]} − ${n} = ${table * n}</p>`;
+  } else if (table === 5) {
+    lines = `<p class="big">10 × ${n} = ${10 * n}, half of that is ${table * n}</p><p class="big">${table} × ${n} = ${table * n}</p>`;
+  } else if (tr.parts.length === 1) {
+    lines = `<p class="big">${table} × ${n} = ${n} with a 0 on the end = ${table * n}</p>`;
+  } else {
+    lines = `<p class="big">${table} × ${n} = ${pieces.join(" + ")} = ${values.join(" + ")} = ${table * n}</p>`;
+  }
+  $("s4status").innerHTML = lines + `<p>And turned around: ${n} × ${table} = ${table * n} too.</p>`;
+}
+$("s4n").addEventListener("input", s4);
+s4();
+</script>
+<script>
+// Show every fraction like 5/6 as a stacked fraction, including ones the page writes later.
+(() => {
+  const FRAC = /(\d+)\/(\d+)/g;
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION"]);
+  function stack(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || SKIP.has(parent.tagName) || parent.closest("svg, .frac")) return NodeFilter.FILTER_REJECT;
+        FRAC.lastIndex = 0;
+        return FRAC.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      },
+    });
+    const found = [];
+    while (walker.nextNode()) found.push(walker.currentNode);
+    for (const node of found) {
+      const text = node.nodeValue, pieces = document.createDocumentFragment();
+      let last = 0;
+      for (const m of text.matchAll(FRAC)) {
+        pieces.append(text.slice(last, m.index));
+        const frac = document.createElement("span");
+        frac.className = "frac";
+        frac.innerHTML = `<span>${m[1]}</span><span>${m[2]}</span>`;
+        pieces.append(frac);
+        last = m.index + m[0].length;
+      }
+      pieces.append(text.slice(last));
+      node.replaceWith(pieces);
+    }
+  }
+  const wrap = document.querySelector(".wrap");
+  stack(wrap);
+  // Our own changes trigger the observer once more, find nothing left to stack, and stop.
+  new MutationObserver(() => stack(wrap)).observe(wrap, { childList: true, subtree: true, characterData: true });
+})();
+</script>
+</body>
+</html>

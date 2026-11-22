@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seeing Percents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: one narrow column on graph paper; each step is a lab bench with a picture on top and words underneath. */
+:root {
+  --paper: #f8fafd;
+  --gridline: #e2e9f3;
+  --surface: #ffffff;
+  --ink: #1b2737;
+  --muted: #5b6a7e;
+  --line: #cfd9e6;
+  --mark: #ffc83d;
+  --mark-soft: #fff1c4;
+  --on-mark: #1b2737;
+  --cool: #1d6a86;
+  --cool-soft: #e3f1f6;
+  --strike: #c8394d;
+  --tax: #2f8a57;
+  --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+    --line: #2d3a4d; --mark: #f0b429; --mark-soft: #3d3215; --cool: #62b6d6; --cool-soft: #16303b;
+    --strike: #f07082; --tax: #6cc596; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+  --line: #2d3a4d; --mark: #f0b429; --mark-soft: #3d3215; --cool: #62b6d6; --cool-soft: #16303b;
+  --strike: #f07082; --tax: #6cc596; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--gridline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font: 17px/1.55 var(--body);
+}
+.wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+h1, h2 { font-family: var(--display); font-weight: 800; line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.4rem, 7vw, 3.4rem); }
+h1 .pct { background: linear-gradient(transparent 55%, var(--mark) 55%); padding: 0 .1em; }
+h2 { font-size: 1.6rem; }
+p { margin: 0; }
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 60ch; }
+.eyebrow { font: 700 .78rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--cool); }
+
+.note {
+  background: var(--cool-soft); border-radius: 14px; padding: 20px 22px;
+  display: grid; gap: 10px;
+}
+.note h3 { margin: 0; font: 700 1.05rem var(--body); }
+.note ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+.bench {
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px;
+  padding: 24px; display: grid; gap: 18px;
+}
+.bench header { display: grid; gap: 6px; }
+.bench .say { max-width: 62ch; }
+
+/* step 1: hundred grid */
+.hundred { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 24px; align-items: center; }
+.grid100 {
+  display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px;
+  aspect-ratio: 1; max-width: 100%;
+}
+.cell { border-radius: 3px; background: var(--paper); border: 1px solid var(--line); transition: background .15s; }
+.cell.on { background: var(--mark); border-color: var(--mark); }
+.readout { display: grid; gap: 12px; }
+.big { font: 800 4rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.same { display: flex; flex-wrap: wrap; gap: 8px; }
+.same span {
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 12px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+button, .chip {
+  font: 700 .95rem var(--body); color: var(--ink); background: var(--surface);
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--cool); }
+button[aria-pressed="true"] { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+button.primary { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
+
+.slider { display: grid; gap: 6px; }
+.slider label { font-weight: 700; display: flex; justify-content: space-between; gap: 12px; }
+.slider output { font-variant-numeric: tabular-nums; color: var(--cool); }
+input[type="range"] { width: 100%; accent-color: var(--cool); }
+
+/* money bars */
+.bar {
+  position: relative; height: 64px; border-radius: 10px; overflow: hidden;
+  border: 2px solid var(--ink); background: var(--surface);
+  display: flex;
+}
+.bar .box {
+  flex: 1; border-right: 1.5px dashed var(--line); position: relative; z-index: 1;
+  display: grid; place-items: end center; padding-bottom: 6px;
+  font: 700 .8rem var(--body); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.bar .box:last-child { border-right: 0; }
+.bar .box.on { color: var(--on-mark); }
+.bar .fill {
+  position: absolute; inset: 0 auto 0 0; background: var(--mark); transition: width .25s;
+}
+.ticks { position: relative; height: 22px; font: 700 .8rem var(--body); color: var(--muted); }
+.ticks span { position: absolute; transform: translateX(-50%); }
+.ticks span:first-child { transform: none; }
+.ticks span:last-child { transform: translateX(-100%); }
+.whole-label { font: 700 1rem var(--body); display: flex; justify-content: space-between; }
+
+.work {
+  background: var(--paper); border-radius: 12px; padding: 14px 16px;
+  display: grid; gap: 6px; font-variant-numeric: tabular-nums;
+}
+.work b { color: var(--cool); }
+.answer { font: 800 1.5rem var(--display); }
+
+/* sale / tax */
+.track { position: relative; height: 64px; display: flex; }
+.seg { height: 100%; transition: width .25s; }
+.seg.pay { background: var(--mark); border: 2px solid var(--ink); }
+.seg.off {
+  background: repeating-linear-gradient(45deg, var(--strike) 0 5px, transparent 5px 11px);
+  border: 2px solid var(--strike); border-right: 0;
+}
+.seg.tax { background: var(--tax); border: 2px solid var(--ink); border-left: 0; }
+.seg.pay.first { border-radius: 10px 0 0 10px; }
+.seg.off { border-radius: 10px 0 0 10px; }
+.seg.pay.last, .seg.tax { border-radius: 0 10px 10px 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.sw { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--ink); flex: none; }
+.sw.pay { background: var(--mark); }
+.sw.off { border-color: var(--strike); background: repeating-linear-gradient(45deg, var(--strike) 0 3px, transparent 3px 6px); }
+.sw.tax { background: var(--tax); }
+
+/* find the percent */
+.story { font-size: 1.15rem; font-weight: 700; max-width: 56ch; }
+.bar.twenty .box { font-size: .7rem; place-items: center; color: var(--ink); }
+.bar.twenty.hide-boxes .box { border-right-color: transparent; }
+.steps { display: grid; gap: 8px; }
+.steps p { padding-left: 14px; border-left: 3px solid var(--mark); }
+.steps p[hidden] { display: none; }
+.guess { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.guess input {
+  width: 6.5em; font: 700 1.05rem var(--body); padding: 8px 10px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.fb { font-weight: 700; }
+.fb.good { color: var(--tax); }
+.fb.bad { color: var(--strike); }
+
+
+@media (max-width: 600px) {
+  .hundred { grid-template-columns: minmax(0, 1fr); }
+  .grid100 { max-width: 320px; }
+  .bench { padding: 18px; }
+  .big { font-size: 3.2rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
+/* Page basics (the mocks got these from the artifact viewer). */
+body { margin: 0; }
+[hidden] { display: none !important; }
+.topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.topics a {
+  font: 700 .9rem var(--body); color: var(--ink); text-decoration: none;
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 12px; background: var(--surface);
+}
+.topics a[aria-current="page"] { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+details.note summary { font-weight: 700; cursor: pointer; }
+details.note[open] summary { margin-bottom: 4px; }
+/* Same title highlight as the app: an underline pulled up behind the letters (a background sits below Baloo's descent). */
+h1 .hl {
+  background: none; padding: 0;
+  text-decoration: underline; text-decoration-color: var(--mark); text-decoration-thickness: .38em;
+  text-underline-offset: -.28em; text-decoration-skip-ink: none;
+}
+/* 5/6 drawn as 5 over a bar over 6 (see the script at the end of the page). */
+.frac {
+  display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle;
+  line-height: 1; font-size: .85em; margin: 0 .12em; font-variant-numeric: tabular-nums;
+}
+.frac > span:first-child { border-bottom: .09em solid currentColor; padding: 0 .12em .08em; }
+.frac > span:last-child { padding-top: .08em; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header style="display:grid;gap:12px">
+    <nav class="topics" aria-label="Topics"><a href="multiplication.html">Multiplication</a><a href="fractions.html">Fractions</a><a href="percent.html" aria-current="page">Percents</a><a href="lcm-gcf.html">LCM & GCF</a><a href="algebra.html">Equations</a><a href="slope.html">Slope</a></nav>
+    <h1>Seeing <span class="pct">Percents</span></h1>
+    <p class="lede">Four short steps. Each one turns a percent into a picture: a square of 100, then a money bar cut into equal boxes. Do them together, in order, with Autumn moving the sliders.</p>
+  </header>
+
+  <details class="note"><summary>For grown-ups: Why percents are tricky</summary>
+    <ul>
+      <li><strong>A percent isn't an amount by itself.</strong> 25% of $40 is $10, but 25% of $200 is $50. It's always a percent <em>of</em> something, so she needs to see the whole first.</li>
+      <li><strong>The app asks two questions in a row.</strong> First the discount (the part that comes off), then the sale price (what's left). Those are different pieces of the same bar.</li>
+      <li><strong>"What percent?" goes backwards.</strong> She knows the dollars and has to work out the share. Counting equal boxes turns that into counting.</li>
+    </ul>
+  </details>
+
+  <!-- Step 1 -->
+  <section class="bench" aria-labelledby="s1">
+    <header>
+      <span class="eyebrow">Step 1</span>
+      <h2 id="s1">Percent means "out of 100"</h2>
+      <p class="say">Here are 100 squares. Color some in. The number of colored squares <em>is</em> the percent. Each full row is 10 squares, so each row is 10%.</p>
+    </header>
+    <div class="hundred">
+      <div class="grid100" id="grid100" role="img" aria-label="100 squares, some colored"></div>
+      <div class="readout">
+        <div class="big" id="bigPct">25%</div>
+        <div class="same" id="sameAs"></div>
+        <div class="slider">
+          <label for="s1range">Squares colored <output id="s1out">25</output></label>
+          <input type="range" id="s1range" min="0" max="100" step="1" value="25">
+        </div>
+        <div class="chips" id="benchmarks" aria-label="Friendly percents"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="bench" aria-labelledby="s2">
+    <header>
+      <span class="eyebrow">Step 2</span>
+      <h2 id="s2">Cut the money into 10 equal boxes</h2>
+      <p class="say">Any price can be cut into 10 equal boxes. Each box is 10%. To find one box, move the decimal point one place left. Half a box is 5%.</p>
+    </header>
+    <div class="chips" id="s2prices" aria-label="Pick a price"></div>
+    <div style="display:grid;gap:4px">
+      <div class="whole-label"><span>The whole price</span><span id="s2whole">$80</span></div>
+      <div class="bar" id="s2bar"><div class="fill" id="s2fill"></div></div>
+      <div class="ticks"><span style="left:0">0%</span><span style="left:50%">50%</span><span style="left:100%">100%</span></div>
+    </div>
+    <div class="slider">
+      <label for="s2range">Percent <output id="s2out">30%</output></label>
+      <input type="range" id="s2range" min="0" max="100" step="5" value="30">
+    </div>
+    <div class="work" id="s2work"></div>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="bench" aria-labelledby="s3">
+    <header>
+      <span class="eyebrow">Step 3</span>
+      <h2 id="s3">Take it off, or add it on?</h2>
+      <p class="say">A sale cuts a piece <em>off</em> the bar, so you pay less than 100%. Tax and fees stick a piece <em>on</em> the end, so you pay more than 100%. Always ask: which piece does the question want?</p>
+    </header>
+    <div class="chips" role="group" aria-label="Story">
+      <button id="modeSale" aria-pressed="true">🧥 Jacket on sale</button>
+      <button id="modeTax" aria-pressed="false">🎮 Game + sales tax</button>
+    </div>
+    <p id="s3story" class="story"></p>
+    <div style="display:grid;gap:10px">
+      <div class="track" id="s3track">
+        <div class="seg" id="segA"></div>
+        <div class="seg" id="segB"></div>
+      </div>
+      <div class="legend" id="s3legend"></div>
+    </div>
+    <div class="slider">
+      <label for="s3range"><span id="s3label">Percent off</span> <output id="s3out">25%</output></label>
+      <input type="range" id="s3range" min="10" max="75" step="5" value="25">
+    </div>
+    <div class="work" id="s3work"></div>
+  </section>
+
+  <!-- Step 4 -->
+  <section class="bench" aria-labelledby="s4">
+    <header>
+      <span class="eyebrow">Step 4</span>
+      <h2 id="s4">Find the percent by counting boxes</h2>
+      <p class="say">When the question asks "what percent?", cut the price into 20 small boxes. Each small box is 5%. Count how many boxes the dollars fill, then count by 5s.</p>
+    </header>
+    <p class="story" id="s4story"></p>
+    <div style="display:grid;gap:4px">
+      <div class="whole-label"><span>The whole price</span><span id="s4whole"></span></div>
+      <div class="bar twenty hide-boxes" id="s4bar"><div class="fill" id="s4fill" style="width:0"></div></div>
+    </div>
+    <div class="steps" id="s4steps">
+      <p id="st1" hidden></p>
+      <p id="st2" hidden></p>
+      <p id="st3" hidden></p>
+    </div>
+    <div class="guess">
+      <label for="s4guess" class="sr">Your answer</label>
+      <input id="s4guess" inputmode="numeric" placeholder="__ %">
+      <button id="s4check">Check</button>
+      <button class="primary" id="s4next">Show next step</button>
+      <button id="s4new">New problem</button>
+      <span class="fb" id="s4fb" aria-live="polite"></span>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const money = (x) => {
+  const c = Math.round(x * 100);
+  return c % 100 === 0 ? `$${c / 100}` : `$${(c / 100).toFixed(2)}`;
+};
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+/* Step 1 */
+const grid = $("grid100");
+const cells = Array.from({ length: 100 }, () => {
+  const d = document.createElement("div");
+  d.className = "cell";
+  grid.appendChild(d);
+  return d;
+});
+const BENCH = [[10, "1/10"], [20, "1/5"], [25, "1/4"], [50, "1/2"], [75, "3/4"], [100, "all"]];
+BENCH.forEach(([n, name]) => {
+  const b = document.createElement("button");
+  b.textContent = `${n}%`;
+  b.title = name;
+  b.onclick = () => { $("s1range").value = n; step1(); };
+  $("benchmarks").appendChild(b);
+});
+function step1() {
+  const n = +$("s1range").value;
+  cells.forEach((c, i) => c.classList.toggle("on", i < n));
+  $("s1out").textContent = n;
+  $("bigPct").textContent = `${n}%`;
+  const g = gcd(n, 100) || 1;
+  const parts = [`${n} out of 100`, `${n}/100`];
+  if (g > 1 && n > 0 && n < 100) parts.push(`${n / g}/${100 / g}`);
+  parts.push((n / 100).toString().replace(/^0\./, "0."));
+  const rows = Math.floor(n / 10), extra = n % 10;
+  if (n > 0 && n < 100) parts.push(rows ? `${rows} row${rows > 1 ? "s" : ""}${extra ? ` + ${extra}` : ""}` : `${extra} square${extra > 1 ? "s" : ""}`);
+  $("sameAs").innerHTML = parts.map((p) => `<span>${p}</span>`).join("");
+}
+$("s1range").addEventListener("input", step1);
+step1();
+
+/* Step 2 */
+let s2price = 80;
+const s2bar = $("s2bar");
+const s2boxes = Array.from({ length: 10 }, () => {
+  const d = document.createElement("div");
+  d.className = "box";
+  s2bar.appendChild(d);
+  return d;
+});
+[40, 60, 80, 120, 150].forEach((p) => {
+  const b = document.createElement("button");
+  b.textContent = money(p);
+  b.setAttribute("aria-pressed", p === s2price);
+  b.onclick = () => {
+    s2price = p;
+    $("s2prices").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    step2();
+  };
+  $("s2prices").appendChild(b);
+});
+function step2() {
+  const p = +$("s2range").value;
+  const box = s2price / 10;
+  $("s2out").textContent = `${p}%`;
+  $("s2whole").textContent = money(s2price);
+  $("s2fill").style.width = `${p}%`;
+  // Each box shows the running total, so the edge of the color reads off the answer.
+  s2boxes.forEach((b, i) => {
+    b.textContent = money(box * (i + 1));
+    b.classList.toggle("on", (i + 1) * 10 <= p);
+  });
+  const full = Math.floor(p / 10), half = p % 10 === 5;
+  const pieces = [];
+  if (full) pieces.push(`${full} box${full > 1 ? "es" : ""} (${full} × ${money(box)} = ${money(full * box)})`);
+  if (half) pieces.push(`half a box (${money(box / 2)})`);
+  $("s2work").innerHTML = `
+    <p>One box: ${money(s2price)} → move the decimal → <b>${money(box)}</b> is 10%. Each box adds ${money(box)} more.</p>
+    ${p ? `<p>${p}% = ${pieces.join(" + ")}</p>` : `<p>0% means no boxes colored.</p>`}
+    <p class="answer">${p}% of ${money(s2price)} = ${money((s2price * p) / 100)}</p>`;
+}
+$("s2range").addEventListener("input", step2);
+step2();
+
+/* Step 3 */
+let mode = "sale";
+const MODES = {
+  sale: { price: 80, min: 10, max: 75, step: 5, val: 25, label: "Percent off",
+    story: (p) => `A jacket costs $80. It is on sale for ${p}% off.` },
+  tax: { price: 60, min: 1, max: 15, step: 1, val: 8, label: "Sales tax",
+    story: (p) => `Autumn buys a video game for $60. Sales tax is ${p}%.` },
+};
+function setMode(m) {
+  mode = m;
+  const cfg = MODES[m];
+  $("modeSale").setAttribute("aria-pressed", m === "sale");
+  $("modeTax").setAttribute("aria-pressed", m === "tax");
+  Object.assign($("s3range"), { min: cfg.min, max: cfg.max, step: cfg.step, value: cfg.val });
+  $("s3label").textContent = cfg.label;
+  step3();
+}
+function step3() {
+  const cfg = MODES[mode];
+  const p = +$("s3range").value;
+  const part = (cfg.price * p) / 100;
+  $("s3out").textContent = `${p}%`;
+  $("s3story").textContent = cfg.story(p);
+  const a = $("segA"), b = $("segB");
+  if (mode === "sale") {
+    a.className = "seg off"; b.className = "seg pay last";
+    a.style.width = `${p}%`; b.style.width = `${100 - p}%`;
+    $("s3legend").innerHTML = `
+      <span><i class="sw off"></i>Discount: ${p}% = ${money(part)}</span>
+      <span><i class="sw pay"></i>She pays: ${100 - p}% = ${money(cfg.price - part)}</span>`;
+    $("s3work").innerHTML = `
+      <p>Question 1, the discount: ${p}% of $80 = <b>${money(part)}</b></p>
+      <p>Question 2, the sale price: $80 − ${money(part)} = <b>${money(cfg.price - part)}</b></p>
+      <p style="color:var(--muted)">Check: the yellow part is ${100 - p}% of $80, and ${100 - p}% of $80 is also ${money(cfg.price - part)}.</p>`;
+  } else {
+    // Draw on a 115% scale so the tax piece has room past the end of the price.
+    a.className = "seg pay first"; b.className = "seg tax";
+    a.style.width = `${(100 / 115) * 100}%`; b.style.width = `${(p / 115) * 100}%`;
+    $("s3legend").innerHTML = `
+      <span><i class="sw pay"></i>Price: 100% = $60</span>
+      <span><i class="sw tax"></i>Tax: ${p}% = ${money(part)}</span>`;
+    $("s3work").innerHTML = `
+      <p>Question 1, the tax: ${p}% of $60 = <b>${money(part)}</b> <span style="color:var(--muted)">(1% of $60 is $0.60, so ${p} × $0.60)</span></p>
+      <p>Question 2, the total: $60 + ${money(part)} = <b>${money(cfg.price + part)}</b></p>
+      <p style="color:var(--muted)">Check: she pays ${100 + p}% of $60, which is ${money(cfg.price + part)}.</p>`;
+  }
+}
+$("modeSale").onclick = () => setMode("sale");
+$("modeTax").onclick = () => setMode("tax");
+$("s3range").addEventListener("input", step3);
+setMode("sale");
+
+/* Step 4: same story types as handlers/percent.py find_percent */
+const STORIES = [
+  { text: (w, p) => `A backpack that costs ${w} is on sale for ${p} off. What percent is the discount?`,
+    pcts: [10, 15, 20, 25, 30, 40, 50, 75] },
+  { text: (w, p) => `Autumn paid ${p} in sales tax on a ${w} purchase. What is the sales tax rate?`,
+    pcts: [5, 10] },
+  { text: (w, p) => `Autumn returned a ${w} order and got a ${p} refund. What percent of her money did she get back?`,
+    pcts: [50, 75, 80, 90] },
+];
+let s4 = {};
+const s4bar = $("s4bar");
+const s4boxes = Array.from({ length: 20 }, () => {
+  const d = document.createElement("div");
+  d.className = "box";
+  s4bar.appendChild(d);
+  return d;
+});
+function newProblem() {
+  const story = pick(STORIES);
+  const whole = 20 * (2 + Math.floor(Math.random() * 9));
+  const pct = pick(story.pcts);
+  s4 = { whole, pct, part: (whole * pct) / 100, step: 0, text: story.text(money(whole), money((whole * pct) / 100)) };
+  $("s4story").textContent = s4.text;
+  $("s4whole").textContent = money(whole);
+  $("s4guess").value = "";
+  $("s4fb").textContent = "";
+  $("s4fb").className = "fb";
+  render4();
+}
+function render4() {
+  const { whole, pct, part, step } = s4;
+  const box = whole / 20, count = pct / 5;
+  $("s4fill").style.width = step >= 1 ? `${pct}%` : "0";
+  s4bar.classList.toggle("hide-boxes", step < 2);
+  s4boxes.forEach((b, i) => (b.textContent = step >= 3 && i < count ? i + 1 : ""));
+  $("st1").hidden = step < 1;
+  $("st1").textContent = `Color in the part: ${money(part)} out of ${money(whole)}.`;
+  $("st2").hidden = step < 2;
+  $("st2").textContent = `Cut ${money(whole)} into 20 boxes. ${money(whole)} ÷ 20 = ${money(box)}, so each box is ${money(box)}, and each box is 5%.`;
+  $("st3").hidden = step < 3;
+  $("st3").textContent = `${money(part)} fills ${count} box${count > 1 ? "es" : ""}. Count by 5s: ${count} × 5% = ${pct}%.`;
+  $("s4next").disabled = step >= 3;
+}
+$("s4next").onclick = () => { s4.step = Math.min(s4.step + 1, 3); render4(); };
+$("s4new").onclick = newProblem;
+$("s4check").onclick = () => {
+  const g = parseFloat($("s4guess").value.replace("%", ""));
+  const fb = $("s4fb");
+  if (Number.isNaN(g)) { fb.textContent = "Type a number, like 25."; fb.className = "fb bad"; return; }
+  if (g === s4.pct) { fb.textContent = `Yes! ${s4.pct}%`; fb.className = "fb good"; s4.step = 3; render4(); }
+  else { fb.textContent = "Not yet. Try the next step."; fb.className = "fb bad"; }
+};
+$("s4guess").addEventListener("keydown", (e) => { if (e.key === "Enter") $("s4check").click(); });
+newProblem();
+</script>
+<script>
+// Show every fraction like 5/6 as a stacked fraction, including ones the page writes later.
+(() => {
+  const FRAC = /(\d+)\/(\d+)/g;
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION"]);
+  function stack(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || SKIP.has(parent.tagName) || parent.closest("svg, .frac")) return NodeFilter.FILTER_REJECT;
+        FRAC.lastIndex = 0;
+        return FRAC.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      },
+    });
+    const found = [];
+    while (walker.nextNode()) found.push(walker.currentNode);
+    for (const node of found) {
+      const text = node.nodeValue, pieces = document.createDocumentFragment();
+      let last = 0;
+      for (const m of text.matchAll(FRAC)) {
+        pieces.append(text.slice(last, m.index));
+        const frac = document.createElement("span");
+        frac.className = "frac";
+        frac.innerHTML = `<span>${m[1]}</span><span>${m[2]}</span>`;
+        pieces.append(frac);
+        last = m.index + m[0].length;
+      }
+      pieces.append(text.slice(last));
+      node.replaceWith(pieces);
+    }
+  }
+  const wrap = document.querySelector(".wrap");
+  stack(wrap);
+  // Our own changes trigger the observer once more, find nothing left to stack, and stop.
+  new MutationObserver(() => stack(wrap)).observe(wrap, { childList: true, subtree: true, characterData: true });
+})();
+</script>
+</body>
+</html>

@@ -4,7 +4,9 @@ import random
 import time
 import math
 import inspect
+import re
 from fractions import Fraction
+from html import escape
 from pathlib import Path
 import handlers
 import matplotlib.pyplot as plt
@@ -22,6 +24,151 @@ KIDS = {
     "autumn": {"avatar": "🦊", "gradient": "from-orange-400 to-pink-500"},
     "molly": {"avatar": "🦄", "gradient": "from-purple-400 to-sky-500"},
 }
+
+# ---------- FONTS AND LEARN PAGES ----------
+# Rounded display font for headings and buttons, a very readable one for everything else.
+APP_FONTS_HTML = '''
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* "html body" outranks Quasar's own body font, whichever stylesheet loads last. */
+html body, .q-field:not(.font-mono) { font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; }
+/* Headings use the rounded font, like the h1/h2 on the Learn pages. */
+html body .text-2xl, html body .text-3xl, html body .text-4xl, html body .text-5xl, .q-btn .q-btn__content {
+  font-family: "Baloo 2", "Trebuchet MS", system-ui, sans-serif; font-weight: 700;
+}
+html body .am-story { font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif; font-weight: 400; }
+/* 5/6 drawn as 5 over a bar over 6. */
+.am-frac {
+  display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle;
+  line-height: 1; font-size: .85em; margin: 0 .12em;
+}
+.am-frac > span:first-child { border-bottom: .09em solid currentColor; padding: 0 .12em .08em; }
+.am-frac > span:last-child { padding-top: .08em; }
+
+/* Same look as the Learn pages (their dark colors): graph paper, cards, one yellow highlight. */
+:root {
+  --am-paper: #10161f; --am-grid: #1a2331; --am-surface: #172131; --am-ink: #e8eef6; --am-muted: #9babbf;
+  --am-line: #2d3a4d; --am-mark: #f0b429; --am-on-mark: #1b2737; --am-cool: #1d6a86; --am-cool-light: #62b6d6;
+  --am-good: #2f8a57; --am-bad: #c8394d;
+}
+body.body--dark, body {
+  background-color: var(--am-paper);
+  background-image: linear-gradient(var(--am-grid) 1px, transparent 1px),
+                    linear-gradient(90deg, var(--am-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--am-ink);
+}
+.am-bench, .q-card.am-bench {
+  background: var(--am-surface) !important; color: var(--am-ink);
+  border: 1.5px solid var(--am-line); border-radius: 18px; box-shadow: none;
+}
+.am-end { border: 3px solid var(--am-mark) !important; }
+.am-title { font-family: "Baloo 2", "Trebuchet MS", system-ui, sans-serif; font-weight: 800; line-height: 1.1; }
+/* A thick underline pulled up behind the letters; a background would sit below Baloo's tall descent. */
+.am-hl {
+  text-decoration: underline; text-decoration-color: var(--am-mark); text-decoration-thickness: .38em;
+  text-underline-offset: -.28em; text-decoration-skip-ink: none;
+}
+.am-muted { color: var(--am-muted); }
+.q-btn.am-btn { border-radius: 12px; font-weight: 800; text-transform: none; }
+.q-btn.am-mark { background: var(--am-mark) !important; color: var(--am-on-mark) !important; }
+.q-btn.am-cool { background: var(--am-cool) !important; color: #fff !important; }
+.q-btn.am-good { background: var(--am-good) !important; color: #fff !important; }
+.q-btn.am-bad { background: var(--am-bad) !important; color: #fff !important; }
+.q-btn.am-key { background: var(--am-surface) !important; color: var(--am-ink) !important; border: 1.5px solid var(--am-line); }
+.q-btn.am-key:hover { border-color: var(--am-cool-light); }
+.am-progress .q-linear-progress__model { background: var(--am-mark) !important; }
+.am-progress .q-linear-progress__track { background: var(--am-line) !important; opacity: 1; }
+.am-chip {
+  border: 1.5px solid var(--am-line); border-radius: 999px; padding: 6px 16px; background: var(--am-surface);
+  color: var(--am-ink); font-weight: 700; text-decoration: none;
+}
+.am-chip:hover { border-color: var(--am-cool-light); }
+
+/* Big scratchpad: the same scratchpad fills the screen, with the problem pinned above the drawing. */
+.am-scratch:not(.am-scratch-full) .am-scratch-only { display: none !important; }
+.am-scratch-full .am-scratch-open { display: none !important; }
+.am-scratch-full {
+  position: fixed; inset: 0; z-index: 2000; background: var(--am-paper); flex-wrap: nowrap !important;
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+           max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.am-scratch-full section[aria-label="Scratchpad"] {
+  max-width: none !important; flex: 1; min-height: 0; display: flex; flex-direction: column;
+}
+.am-scratch-full .sp-tip { display: none; }
+/* Keep the 4:3 shape (strokes are stored as fractions of the size) and grow as big as fits. */
+.am-scratch-full .sp-canvas-box { flex: 1; min-height: 0; container-type: size; display: grid; place-items: center; }
+.am-scratch-full .sp-canvas-box canvas { width: min(100cqw, 133.33cqh) !important; }
+.am-scratch-answer {
+  min-width: 7em; min-height: 1.6em; line-height: 1.6em; padding: 4px 12px; border-radius: 10px; border: 1.5px solid var(--am-line);
+  background: var(--am-surface); font-family: ui-monospace, monospace;
+}
+.q-btn.am-minikey { min-width: 48px; min-height: 48px; padding: 0 10px; }
+body.am-noscroll { overflow: hidden; }
+
+/* Quiz page: a rail for the fight, question and keypad; the scratchpad takes the rest. */
+.am-quiz {
+  display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 18px; align-items: start;
+  width: 100%; max-width: 1400px;
+}
+@media (max-width: 900px) { .am-quiz { grid-template-columns: minmax(0, 1fr); } }
+.am-face { font-size: 2.2rem; line-height: 1; }
+.am-hearts { font-size: .75rem; letter-spacing: -1px; }
+.am-mini-road { display: flex; align-items: center; gap: 3px; white-space: nowrap; font-weight: 700; }
+.am-dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid #d6b07a; }
+.am-dot.on { background: #fde68a; border-color: #fde68a; }
+.am-keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.am-keys .q-btn { min-height: 46px; }
+.am-keys .am-key-wide { grid-column: span 2; }
+.am-pin { background: #1d2a3d; border-radius: 12px; padding: 10px 14px; }
+.am-pin-q { font-size: 1.05rem; }
+.am-scratch-full .am-pin-q { font-size: 1.5rem; }
+.am-scratch-full .am-scratch-hide { display: none !important; }
+.am-scratch-full.am-bench { border-radius: 0; border: 0; }
+.am-scratch .sp-tip { display: none; }
+/* Stacked on a narrow screen, the question card sits right above, so the pin only keeps its button. */
+@media (max-width: 900px) {
+  .am-scratch:not(.am-scratch-full) .am-pin-q { display: none; }
+  .am-scratch:not(.am-scratch-full) .am-pin { background: none; padding: 0; justify-content: flex-end; }
+}
+</style>
+'''
+
+# Picture walkthroughs in learn/, served at /learn. Free to open; they never cost a heart.
+LEARN_DIR = Path(__file__).resolve().parent / "learn"
+LEARN_TOPICS = {
+    "multiplication.html": "Multiplication",
+    "fractions.html": "Fractions",
+    "percent.html": "Percents",
+    "lcm-gcf.html": "LCM & GCF",
+    "algebra.html": "Equations",
+    "slope.html": "Slope",
+}
+LEARN_PAGES = {
+    "*": "multiplication.html", "x": "multiplication.html",
+    "fraction": "fractions.html",
+    "percent": "percent.html",
+    "lcm": "lcm-gcf.html", "gcf": "lcm-gcf.html",
+    "alg": "algebra.html", "multi_alg": "algebra.html", "hard_alg": "algebra.html",
+    "slope": "slope.html",
+}
+
+
+FRACTION = re.compile(r"(\d+)/(\d+)")
+
+
+def stacked_fractions(text):
+    """HTML for question text with fractions like 5/6 drawn as 5 over a bar over 6."""
+    return FRACTION.sub(r'<span class="am-frac"><span>\1</span><span>\2</span></span>', escape(text))
+
+
+def learn_url(symbol):
+    page = LEARN_PAGES.get(symbol)
+    return f"/learn/{page}" if page else None
+
 
 AVATAR_DANCES = ("dance-wiggle", "dance-hop", "dance-spin")
 AVATAR_DANCE_CSS = '''
@@ -92,6 +239,13 @@ def load_stats() -> dict:
         return json.loads(STATS_PATH.read_text())
     except (FileNotFoundError, ValueError):
         return {}
+
+
+def treat_dots_html(wins: int) -> str:
+    """The castle road in one line for the quiz page: a dot per win toward the next treat."""
+    wins = min(wins, WINS_FOR_TREAT)
+    dots = "".join(f'<span class="am-dot{" on" if i < wins else ""}"></span>' for i in range(WINS_FOR_TREAT))
+    return f"🏰 {dots} {wins} of {WINS_FOR_TREAT}"
 
 
 def kid_stats(name: str) -> dict:
@@ -204,7 +358,8 @@ class MathQuizGame:
         self.allowed_ops = allowed_ops or ["+"]
         self.name = name
         self.multiplication_range = multiplication_range
-        self.times_table = times_table  # e.g. 3: every × problem uses 3, the other number from multiplication_range
+        # e.g. 3: every × problem uses 3, the other number from multiplication_range; [3, 4]: 3 or 4 each time
+        self.times_table = times_table
 
         self.current_index = 0
         self.wrong = 0
@@ -254,6 +409,9 @@ class MathQuizGame:
         self.battle_avatar_label = self.battle_enemy_label = None
         self.battle_caption_label = self.battle_status_label = None
         self.hint_button = None
+        self.learn_button = None
+        self.scratch_problem = None  # problem pinned above the big scratchpad
+        self.scratch_full = False
         self.hint_container = None
         self.end_card = None
         self.end_title_label = None
@@ -413,7 +571,7 @@ class MathQuizGame:
         self.feedback_color = None
 
         try:
-            if self.symbol in ["fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler", "percent"]:
+            if self.symbol in ["fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler", "percent", "hard_alg"]:
                 if self.symbol == "ruler":
                     if "/" not in user_input:
                         raise ValueError("Fraction required for ruler")
@@ -421,7 +579,7 @@ class MathQuizGame:
                     num, den = int(num_str), int(den_str)
                     if math.gcd(num, den) != 1:
                         self.feedback = "Use simplest form (e.g., 1/4 instead of 2/8)."
-                        self.feedback_color = "#8b0000"
+                        self.feedback_color = "#f07082"  # readable red on the dark page
                         self.input_text = ""
                         self.update_ui()
                         return
@@ -432,7 +590,7 @@ class MathQuizGame:
                         num, den = int(num_str), int(den_str)
                         if math.gcd(num, den) != 1:
                             self.feedback = "Use simplest form (e.g., 1/2 instead of 5/10)."
-                            self.feedback_color = "#8b0000"
+                            self.feedback_color = "#f07082"  # readable red on the dark page
                             self.input_text = ""
                             self.update_ui()
                             return
@@ -533,7 +691,7 @@ class MathQuizGame:
 
     def close_battle(self):
         self.battle_dialog.close()
-        if self.answer_label and self.in_play and not self.answer_pending:
+        if self.answer_label and self.in_play and not self.answer_pending and not self.scratch_full:
             self.answer_label.run_method('focus')
 
     def celebrate(self):
@@ -631,7 +789,7 @@ class MathQuizGame:
         if self.answer_pending:
             self.advance_problem()
             return
-        self.feedback = "⏪ Progress restored!"
+        self.feedback = ""  # pick up quietly where she left off
         if self.symbol == "ruler":
             self.question_svg = handlers.ruler.build_ruler_svg(int(self.solution * 16))
         elif self.symbol == "cm_ruler":
@@ -707,7 +865,7 @@ class MathQuizGame:
 
     def update_treat_label(self, kid=None):
         if self.treat_label:
-            self.treat_label.set_content(castle_road_svg((kid or kid_stats(self.name))["streak"], get_avatar(self.name)))
+            self.treat_label.set_content(treat_dots_html((kid or kid_stats(self.name))["streak"]))
 
     def update_ui(self):
         if self.progress_label:
@@ -728,11 +886,16 @@ class MathQuizGame:
             displayed_question = handlers.arithmetic.vertical_question(self.question)
             if displayed_question != self.question:
                 self.question_label.classes(add='font-mono whitespace-pre text-4xl',
-                                            remove='whitespace-normal text-2xl')
+                                            remove='whitespace-normal text-2xl text-lg am-story')
             else:
-                self.question_label.classes(add='whitespace-normal text-2xl',
-                                            remove='font-mono whitespace-pre text-4xl')
-            self.question_label.set_text(displayed_question)
+                # Word problems read better in the body font; short equations use the rounded one.
+                if len(displayed_question) > 40:
+                    self.question_label.classes(add='whitespace-normal text-lg am-story',
+                                                remove='font-mono whitespace-pre text-4xl text-2xl')
+                else:
+                    self.question_label.classes(add='whitespace-normal text-2xl',
+                                                remove='font-mono whitespace-pre text-4xl text-lg am-story')
+            self.question_label.set_content(stacked_fractions(displayed_question))
         if self.feedback_label:
             self.feedback_label.set_text(self.feedback)
             if self.feedback_color:
@@ -743,10 +906,14 @@ class MathQuizGame:
             self.answer_label.set_value(self.input_text)
             active = self.in_play and not self.answer_pending
             self.answer_label.set_enabled(active)
-            if active:
+            if active and not self.scratch_full:
                 self.answer_label.run_method('focus')
+        if self.scratch_problem:
+            self.scratch_problem.set_content(stacked_fractions(self.question))
         if self.svg_container:
             self.svg_container.set_content(self.question_svg or "")
+        if self.plot:
+            self.plot.visible = self.symbol == "slope"  # the graph area is blank for everything else
         if self.hint_container:
             self.hint_container.set_content(
                 handlers.visuals.build_svg(self.hint, self.hint_level) if self.hint_level else "")
@@ -754,6 +921,13 @@ class MathQuizGame:
             self.hint_button.set_text("💡 Show me" if self.hint_level == 0 else "💡 Another hint")
             self.hint_button.visible = (bool(self.hint) and not self.answer_pending
                                         and self.hint_level < handlers.visuals.hint_steps(self.hint))
+        if self.learn_button:
+            self.learn_button.visible = self.in_play and learn_url(self.symbol) is not None
+
+    def open_learn_page(self):
+        url = learn_url(self.symbol)
+        if url:
+            ui.navigate.to(url, new_tab=True)
 
 
 # keypad helpers
@@ -761,6 +935,13 @@ def add_char(quiz: MathQuizGame, ch: str):
     if quiz.answer_pending:
         return
     quiz.input_text += ch
+    if quiz.answer_label:
+        quiz.answer_label.set_value(quiz.input_text)
+
+
+def delete_char(quiz: MathQuizGame):
+    """Erase the last character typed (the keypad's DELETE key and Backspace)."""
+    quiz.input_text = quiz.input_text[:-1]
     if quiz.answer_label:
         quiz.answer_label.set_value(quiz.input_text)
 
@@ -780,9 +961,7 @@ def handle_quiz_key(quiz: MathQuizGame, key: str):
         if quiz.input_text.strip():
             quiz.check_answer()
     elif key == "Backspace":
-        quiz.input_text = quiz.input_text[:-1]
-        if quiz.answer_label:
-            quiz.answer_label.set_value(quiz.input_text)
+        delete_char(quiz)
     elif key in ("Escape", "Delete"):
         clear_input(quiz)
 
@@ -798,7 +977,7 @@ def handle_keyboard_event(quiz: MathQuizGame, event):
 # ---------- PAGE FACTORY ----------
 def create_svg_container(classes='w-[520px] h-[140px]'):
     # NiceGUI 2.x rejects sanitize; NiceGUI 3.x requires it.
-    # This container only displays SVG generated by our ruler and visuals handlers.
+    # This container only displays our own markup: SVG from the ruler and visuals handlers, and page titles.
     options = {'sanitize': False} if 'sanitize' in inspect.signature(ui.html).parameters else {}
     return ui.html('', **options).classes(classes)
 
@@ -844,7 +1023,8 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
             quiz.question = "Press ▶️ Start Quiz to begin"
             quiz.update_ui()
 
-        with ui.row().classes("items-start justify-start w-full h-screen p-6 gap-12") as quiz_layout:
+        # Left rail: the fight, the question and the keypad together. Right: the scratchpad, problem pinned on top.
+        with ui.element('div').classes("am-quiz") as quiz_layout:
             # Capture Enter on focused keypad buttons before it can click them.
             # Elsewhere, ui.keyboard handles Enter normally.
             quiz_layout.on('keydown.capture', lambda e: handle_quiz_key(quiz, 'Enter'), js_handler='''(e) => {
@@ -862,23 +1042,26 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                     e.stopPropagation();
                 }
             }''')
-            with ui.column().classes("items-start"):
-                ui.label(f"{name.capitalize()}'s Math Adventure").classes("text-3xl font-bold mb-2")
-                # Road to the treat castle up top, to keep them going for 7 wins.
-                quiz.treat_label = create_svg_container("w-[440px] mb-4")
-                quiz.update_treat_label()
+            with ui.column().classes("am-rail gap-3 min-w-0"):
+                with ui.row().classes("items-center gap-3 no-wrap"):
+                    ui.link("🏠", "/").classes("text-2xl no-underline").props('aria-label="Home"')
+                    create_svg_container("am-title text-2xl").set_content(
+                        f'{name.capitalize()}\'s <span class="am-hl">Adventure</span>')
 
-                # Battle arena: your avatar and hearts vs. this problem's enemy and its health.
-                # Sticky so the fight stays in view when the page scrolls to the answer box.
-                with ui.row().classes("items-end justify-between w-[440px] mb-4 px-6 py-4 rounded-2xl "
-                                      "bg-gradient-to-r from-sky-900 to-indigo-900 sticky top-2 z-10 shadow-lg"):
-                    with ui.column().classes("items-center gap-1"):
-                        quiz.avatar_label = ui.label(get_avatar(name)).classes("text-6xl inline-block")
-                        quiz.life_label = ui.label("❤️" * MAX_LIFE).classes("text-xs")
-                    ui.label("⚔️").classes("text-3xl self-center")
-                    with ui.column().classes("items-center gap-1"):
-                        quiz.enemy_label = ui.label("").classes("text-6xl inline-block")
-                        quiz.enemy_hp_label = ui.label("").classes("text-xs")
+                # The fight, progress through the quiz, and wins toward the treat castle.
+                with ui.column().classes("am-bench gap-2 px-4 py-3 w-full"):
+                    with ui.row().classes("items-center justify-between w-full no-wrap gap-1"):
+                        quiz.avatar_label = ui.label(get_avatar(name)).classes("am-face inline-block")
+                        quiz.life_label = ui.label("❤️" * MAX_LIFE).classes("am-hearts")
+                        ui.label("⚔️").classes("text-lg")
+                        quiz.enemy_hp_label = ui.label("").classes("am-hearts")
+                        quiz.enemy_label = ui.label("").classes("am-face inline-block")
+                    with ui.row().classes("items-center justify-between w-full no-wrap text-sm am-muted"):
+                        quiz.progress_label = ui.label("")
+                        quiz.treat_label = create_svg_container("am-mini-road")
+                        quiz.update_treat_label()
+                    quiz.progress_bar = ui.linear_progress(value=0, show_value=False, size='12px',
+                                                           color='orange').props('rounded').classes('am-progress w-full')
 
                 def pick_avatar(avatar):
                     set_avatar(name, avatar)
@@ -886,19 +1069,20 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                     quiz.update_treat_label()
                     quiz.celebrate()
 
-                quiz.progress_label = ui.label("").classes("text-xl")
-                quiz.progress_bar = ui.linear_progress(value=0, show_value=False, size='24px',
-                                                       color='orange').props('rounded').classes('w-96 mb-4')
-                quiz.feedback_label = ui.label("").classes("text-xl mb-2")
-                quiz.question_label = ui.label("").classes("text-2xl mb-2 max-w-xl whitespace-normal")
-                quiz.hint_button = ui.button("💡 Show me", on_click=quiz.show_hint, color=None).classes(
-                    "bg-yellow-400 text-gray-900 text-lg font-bold rounded-xl mb-2"
-                )
-                quiz.hint_button.visible = False
-                quiz.hint_container = create_svg_container("mb-2")
+                with ui.column().classes("am-bench gap-3 px-4 py-4 w-full"):
+                    quiz.feedback_label = ui.label("").classes("text-lg")
+                    quiz.question_label = create_svg_container("text-lg whitespace-normal")
+                    with ui.row().classes("gap-2"):
+                        quiz.hint_button = ui.button("💡 Show me", on_click=quiz.show_hint, color=None).classes(
+                            "am-btn am-mark text-lg"
+                        )
+                        quiz.hint_button.visible = False
+                        # Opens the picture walkthrough for this kind of problem in a new tab; free, unlike hints.
+                        quiz.learn_button = ui.button("📖 Learn", on_click=quiz.open_learn_page,
+                                                      color=None).classes("am-btn am-cool text-lg")
+                        quiz.learn_button.visible = False
 
-                with ui.card().classes("items-center p-8 rounded-3xl bg-gradient-to-br from-yellow-300 "
-                                       "to-orange-400 text-gray-900 w-96") as quiz.end_card:
+                with ui.card().classes("am-bench am-end items-center p-8 w-full") as quiz.end_card:
                     quiz.end_avatar_label = ui.label("").classes("text-7xl")
                     quiz.end_title_label = ui.label("🎉 You did it!").classes("text-3xl font-bold")
                     quiz.end_stars_label = ui.label("").classes("text-5xl")
@@ -906,12 +1090,12 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                     quiz.end_message_label = ui.label("").classes("text-xl font-semibold")
                 quiz.end_card.visible = False
 
-                play_area = ui.column().classes("items-start gap-0")
+                play_area = ui.column().classes("am-bench gap-3 px-4 py-4 w-full")
                 play_area.bind_visibility_from(quiz.end_card, 'visible', backward=lambda shown: not shown)
                 with play_area:
                     quiz.answer_label = ui.input('Your answer').bind_value(quiz, 'input_text').props(
                         'outlined autocomplete=off'
-                    ).classes('text-2xl font-mono mb-4 w-64')
+                    ).classes('text-2xl font-mono w-full')
                     quiz.answer_label.disable()
                     # Handle keys directly on the input; the global listener ignores inputs.
                     quiz.answer_label.on('keydown', lambda e: handle_quiz_key(quiz, e.args['key']),
@@ -923,45 +1107,27 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                             if (!e.repeat) emit({key: e.key});
                         }
                     }''')
-                    ui.label('Type your answer • Enter: submit • Backspace: erase • Esc: clear').classes('text-sm mb-2')
-
-                    # ✅ Keypad now evenly aligned and centered
-                    keypad_col = ui.column().classes("items-center gap-2 mt-4 scale-90").props('data-quiz-keypad')
-                    with keypad_col:
-                        for row in [
-                            ["1", "2", "3"],
-                            ["4", "5", "6"],
-                            ["7", "8", "9"],
-                            ["0", ".", "/"],
-                            ["-", "C", "Enter"]
-                        ]:
-                            with ui.row().classes("gap-3 justify-center"):
-                                for key in row:
-                                    label = "CLEAR" if key == "C" else "ENTER" if key == "Enter" else key
-                                    btn_class = (
-                                        "bg-red-500" if key == "C"
-                                        else "bg-green-500" if key == "Enter"
-                                        else "bg-blue-500"
-                                    )
-                                    ui.button(label,
-                                            on_click=(lambda q=quiz: clear_input(q))
-                                            if key == "C"
-                                            else (lambda q=quiz: q.check_answer())
-                                            if key == "Enter"
-                                            else (lambda _, k=key, q=quiz: add_char(q, k)),
-                                            color=None
-                                            ).classes(
-                                                f"{btn_class} text-white text-lg font-bold p-3 rounded-xl w-20 h-16"
-                                            )
+                    with ui.element('div').classes("am-keys").props('data-quiz-keypad'):
+                        for key in ["1", "2", "3", "Del", "4", "5", "6", ".", "7", "8", "9", "/", "-", "0", "Enter"]:
+                            if key == "Del":
+                                ui.button("DELETE", on_click=lambda q=quiz: delete_char(q), color=None).classes(
+                                    "am-btn am-bad text-base")
+                            elif key == "Enter":
+                                ui.button("ENTER", on_click=lambda q=quiz: q.check_answer(), color=None).classes(
+                                    "am-btn am-good text-lg am-key-wide")
+                            else:
+                                ui.button(key, on_click=lambda _, k=key, q=quiz: add_char(q, k), color=None).classes(
+                                    "am-btn am-key text-xl")
+                    ui.label('Enter: submit • Backspace: erase one • Esc: clear all').classes('text-xs am-muted')
 
                 quiz.start_button = ui.button("▶️ Start Quiz", on_click=lambda q=quiz: q.start(), color=None).classes(
-                    "bg-green-600 text-white text-lg p-3 rounded-xl mt-6"
+                    "am-btn am-good text-xl px-6 py-3"
                 ).props('data-quiz-start')
 
                 # Kids can pick their player whenever a quiz isn't in progress.
-                with ui.column().classes("mt-4 gap-1") as avatar_picker:
+                with ui.column().classes("gap-1") as avatar_picker:
                     ui.label("Pick your player:").classes("text-lg")
-                    with ui.row().classes("gap-2"):
+                    with ui.row().classes("gap-1"):
                         for avatar in AVATARS:
                             ui.button(avatar, on_click=lambda _, a=avatar: pick_avatar(a)).props(
                                 'flat round'
@@ -969,14 +1135,46 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
                 avatar_picker.bind_visibility_from(quiz.start_button, 'visible')
 
             # Scratch work stays visible while moving through follow-up questions.
-            with ui.column().classes("items-start justify-start w-full min-w-0").style('flex: 1 1 520px; max-width: 900px'):
+            with ui.column().classes("am-bench am-scratch gap-3 px-4 py-4 min-w-0") as scratch_area:
+                def set_big_scratchpad(on):
+                    quiz.scratch_full = on
+                    if on:
+                        scratch_area.classes(add="am-scratch-full")
+                    else:
+                        scratch_area.classes(remove="am-scratch-full")
+                    ui.run_javascript(f"document.body.classList.toggle('am-noscroll', {str(on).lower()})")
+                    quiz.update_ui()
+
+                # Pinned above the drawing, so Undo, Clear and the pen can never touch the problem.
+                with ui.row().classes("am-pin items-center gap-3 w-full no-wrap"):
+                    with ui.column().classes("gap-0 flex-1 min-w-0"):
+                        quiz.scratch_problem = create_svg_container("am-pin-q am-story whitespace-normal")
+                        ui.label().bind_text_from(quiz, 'feedback').classes("am-scratch-only text-lg")
+                    ui.button("✏️ Big", on_click=lambda: set_big_scratchpad(True), color=None).classes(
+                        "am-scratch-open am-btn am-cool text-lg")
+                    ui.button("✕ Done", on_click=lambda: set_big_scratchpad(False), color=None).classes(
+                        "am-scratch-only am-btn am-cool text-lg")
+                # Hint pictures are wide, so they show here, right where she's working.
+                quiz.hint_container = create_svg_container("max-w-full overflow-x-auto")
                 Scratchpad().classes('w-full')
-                quiz.svg_container = create_svg_container()
-                quiz.plot = ui.pyplot().classes("w-[500px] h-[400px]")
+                # Answer from the big scratchpad without the on-screen keyboard covering the work.
+                with ui.row().classes("am-scratch-only items-center gap-2 w-full justify-center"):
+                    ui.label().bind_text_from(quiz, 'input_text', backward=lambda t: t or " ").classes(
+                        "am-scratch-answer text-2xl")
+                    for key in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", ".", "/", "-"]:
+                        ui.button(key, on_click=lambda _, k=key: add_char(quiz, k), color=None).classes(
+                            "am-btn am-key am-minikey text-xl")
+                    ui.button("DELETE", on_click=lambda: delete_char(quiz), color=None).classes(
+                        "am-btn am-bad am-minikey text-lg")
+                    ui.button("ENTER", on_click=quiz.check_answer, color=None).classes(
+                        "am-btn am-good am-minikey text-lg")
+                # Pictures that belong to the question itself (rulers, slope graphs).
+                quiz.svg_container = create_svg_container("am-scratch-hide max-w-full overflow-x-auto")
+                quiz.plot = ui.pyplot().classes("am-scratch-hide w-[500px] max-w-full h-[400px]")
 
         # The fight pops up over everything after each answer, then closes itself.
         with ui.dialog() as quiz.battle_dialog, ui.card().classes(
-                "items-center gap-2 px-10 py-8 rounded-3xl bg-gradient-to-br from-sky-800 to-indigo-900 text-white"):
+                "am-bench items-center gap-2 px-10 py-8"):
             with ui.row().classes("items-center gap-10"):
                 quiz.battle_avatar_label = ui.label("").classes("text-8xl inline-block")
                 ui.label("⚔️").classes("text-5xl")
@@ -988,18 +1186,22 @@ def make_quiz_page(total_problems: int, name: str, ops: list, multiplication_ran
     return page
 
 
+ui.add_head_html(APP_FONTS_HTML, shared=True)
+app.add_static_files('/learn', LEARN_DIR)
+
 # ---------- REGISTER QUIZ PAGES ----------
 # make_quiz_page(15, "autumn", ["multi_alg", "fraction", "slope", "decimal_multi_div", "ruler", "cm_ruler"])
-make_quiz_page(15, "autumn", ["lcm", "gcf", "percent"])
-# Molly practices one times table: 3 × 1 through 3 × 10, with the 3 on either side.
-make_quiz_page(100, "molly", ["*"], times_table=3, multiplication_range=(1, 10))
+#(15, "autumn", ["lcm", "gcf", "percent"])
+make_quiz_page(15, "autumn", ["lcm", "gcf", "percent", "hard_alg"])
+# Molly practices the 3s and 4s: each problem picks one table, times 1 through 10, on either side.
+make_quiz_page(100, "molly", ["*"], times_table=[3,4], multiplication_range=(1, 10))
 
 
 
 # ---------- ROOT PAGE ----------
 def root_page():
     with ui.column().classes("items-center justify-center w-full h-screen gap-6"):
-        ui.label("Welcome to Peaccion Math!").classes("text-4xl font-bold")
+        create_svg_container("am-title text-5xl").set_content('Welcome to Peaccion <span class="am-hl">Math!</span>')
         ui.label("Pick your player").classes("text-2xl mb-6")
         with ui.row().classes("gap-8 justify-center"):
             for name, kid in KIDS.items():
@@ -1015,6 +1217,10 @@ def root_page():
                         ui.label(f"🎁 {stats['treats']} treat{'s' if stats['treats'] > 1 else ''} earned").classes(
                             "text-sm font-bold")
                     ui.label("Let's play! ▶️").classes("text-lg")
+        ui.label("📖 Learn with pictures").classes("text-2xl mt-6")
+        with ui.row().classes("gap-3 justify-center"):
+            for page, title in LEARN_TOPICS.items():
+                ui.link(title, f"/learn/{page}", new_tab=True).classes("am-chip text-lg")
 
 ui.page('/',dark=True)(root_page)
 # Two ways to start:

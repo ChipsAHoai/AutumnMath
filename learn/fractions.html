@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seeing Fractions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: same graph-paper column as the other mocks; every fraction is a bar, orange for the first fraction, purple for the second. */
+:root {
+  --paper: #f8fafd;
+  --gridline: #e2e9f3;
+  --surface: #ffffff;
+  --ink: #1b2737;
+  --muted: #5b6a7e;
+  --line: #cfd9e6;
+  --mark: #ffc83d;
+  --on-mark: #1b2737;
+  --cool: #1d6a86;
+  --cool-soft: #e3f1f6;
+  --a: #e8761f;
+  --b: #7650d0;
+  --good: #2f8a57;
+  --bad: #c8394d;
+  --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+    --line: #2d3a4d; --mark: #f0b429; --cool: #62b6d6; --cool-soft: #16303b;
+    --a: #f39a52; --b: #a88bf0; --good: #6cc596; --bad: #f07082; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+  --line: #2d3a4d; --mark: #f0b429; --cool: #62b6d6; --cool-soft: #16303b;
+  --a: #f39a52; --b: #a88bf0; --good: #6cc596; --bad: #f07082; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--gridline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font: 17px/1.55 var(--body);
+}
+.wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+h1, h2 { font-family: var(--display); font-weight: 800; line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.4rem, 7vw, 3.4rem); }
+h1 .hl { background: linear-gradient(transparent 55%, var(--mark) 55%); padding: 0 .1em; }
+h2 { font-size: 1.6rem; }
+p { margin: 0; }
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 60ch; }
+.eyebrow { font: 700 .78rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--cool); }
+.ca { color: var(--a); font-weight: 700; }
+.cb { color: var(--b); font-weight: 700; }
+
+.note { background: var(--cool-soft); border-radius: 14px; padding: 20px 22px; display: grid; gap: 10px; }
+.note h3 { margin: 0; font: 700 1.05rem var(--body); }
+.note ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+.bench {
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px;
+  padding: 24px; display: grid; gap: 18px; min-width: 0;
+}
+.bench header { display: grid; gap: 6px; }
+.say { max-width: 62ch; }
+
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button {
+  font: 700 .95rem var(--body); color: var(--ink); background: var(--surface);
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--cool); }
+button.primary { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
+
+.sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; }
+.slider { display: grid; gap: 6px; }
+.slider label { font-weight: 700; display: flex; justify-content: space-between; gap: 12px; }
+.slider output { color: var(--cool); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--cool); }
+
+/* fraction bars */
+.bars { display: grid; gap: 8px; }
+.barrow { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); gap: 10px; align-items: center; }
+.barrow .name { font: 800 1.15rem var(--display); text-align: right; font-variant-numeric: tabular-nums; }
+.barset { display: grid; gap: 6px; }
+.bar { display: flex; height: 40px; border: 2px solid var(--ink); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.cell { flex: 1; border-right: 1.5px solid var(--line); transition: background .2s; }
+.cell:last-child { border-right: 0; }
+.cell.A { background: var(--a); }
+.cell.B { background: var(--b); }
+.cell.M { background: var(--mark); }
+.cell.cutA { border-right: 2px solid var(--ink); }
+.cell.wrong { background: repeating-linear-gradient(45deg, var(--bad) 0 4px, transparent 4px 9px); }
+
+.eq {
+  font: 800 clamp(1.4rem, 5vw, 2rem)/1.25 var(--display); text-align: center;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.status {
+  background: var(--paper); border-radius: 12px; padding: 14px 16px;
+  display: grid; gap: 6px; font-variant-numeric: tabular-nums;
+}
+.status .big { font: 800 1.3rem var(--display); }
+.steps { display: grid; gap: 8px; }
+.steps p { padding-left: 14px; border-left: 3px solid var(--mark); }
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+
+
+@media (max-width: 600px) {
+  .bench { padding: 18px; }
+  .sliders { grid-template-columns: minmax(0, 1fr); }
+  .barrow { grid-template-columns: 3.6em minmax(0, 1fr); }
+  .bar { height: 34px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Page basics (the mocks got these from the artifact viewer). */
+body { margin: 0; }
+[hidden] { display: none !important; }
+.topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.topics a {
+  font: 700 .9rem var(--body); color: var(--ink); text-decoration: none;
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 12px; background: var(--surface);
+}
+.topics a[aria-current="page"] { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+details.note summary { font-weight: 700; cursor: pointer; }
+details.note[open] summary { margin-bottom: 4px; }
+/* Same title highlight as the app: an underline pulled up behind the letters (a background sits below Baloo's descent). */
+h1 .hl {
+  background: none; padding: 0;
+  text-decoration: underline; text-decoration-color: var(--mark); text-decoration-thickness: .38em;
+  text-underline-offset: -.28em; text-decoration-skip-ink: none;
+}
+/* 5/6 drawn as 5 over a bar over 6 (see the script at the end of the page). */
+.frac {
+  display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle;
+  line-height: 1; font-size: .85em; margin: 0 .12em; font-variant-numeric: tabular-nums;
+}
+.frac > span:first-child { border-bottom: .09em solid currentColor; padding: 0 .12em .08em; }
+.frac > span:last-child { padding-top: .08em; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header style="display:grid;gap:12px">
+    <nav class="topics" aria-label="Topics"><a href="multiplication.html">Multiplication</a><a href="fractions.html" aria-current="page">Fractions</a><a href="percent.html">Percents</a><a href="lcm-gcf.html">LCM & GCF</a><a href="algebra.html">Equations</a><a href="slope.html">Slope</a></nav>
+    <h1>Seeing <span class="hl">Fractions</span></h1>
+    <p class="lede">A fraction is a bar cut into equal pieces. The bottom number says how many pieces the whole bar is cut into. The top number says how many pieces you have.</p>
+  </header>
+
+  <details class="note"><summary>For grown-ups: Why adding fractions is tricky</summary>
+    <ul>
+      <li><strong>It looks like you can add straight across.</strong> 1/2 + 1/3 is not 2/5. Step 3 shows why: 2/5 is smaller than the 1/2 you started with.</li>
+      <li><strong>You can only add pieces of the same size.</strong> That means cutting both bars into smaller matching pieces first, which uses the LCM.</li>
+      <li><strong>The app wants the answer simplified.</strong> Simplifying is gluing pieces back together, which uses the GCF.</li>
+    </ul>
+  </details>
+
+  <!-- Step 1 -->
+  <section class="bench" aria-labelledby="s1">
+    <header>
+      <span class="eyebrow">Step 1</span>
+      <h2 id="s1">Top and bottom</h2>
+      <p class="say">The <strong>bottom</strong> cuts each bar into equal pieces. The <strong>top</strong> colors pieces in. If the top is bigger than the bottom, you need more than one whole bar.</p>
+    </header>
+    <div class="sliders">
+      <div class="slider">
+        <label for="s1n">Top (pieces you have) <output id="s1nout">3</output></label>
+        <input type="range" id="s1n" min="0" max="20" value="3">
+      </div>
+      <div class="slider">
+        <label for="s1d">Bottom (pieces in a whole) <output id="s1dout">4</output></label>
+        <input type="range" id="s1d" min="1" max="12" value="4">
+      </div>
+    </div>
+    <div class="bars" id="s1bars"></div>
+    <p class="eq" id="s1eq"></p>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="bench" aria-labelledby="s2">
+    <header>
+      <span class="eyebrow">Step 2</span>
+      <h2 id="s2">Same amount, smaller pieces</h2>
+      <p class="say">Cut every piece into smaller pieces. The colored amount doesn't change, but now there are more pieces on top <em>and</em> on the bottom. Multiply both by the same number.</p>
+    </header>
+    <div class="sliders">
+      <div class="slider">
+        <label for="s2f">Starting fraction <output id="s2fout">2/3</output></label>
+        <input type="range" id="s2f" min="0" max="7" value="1">
+      </div>
+      <div class="slider">
+        <label for="s2k">Cut each piece into <output id="s2kout">2</output></label>
+        <input type="range" id="s2k" min="1" max="5" value="2">
+      </div>
+    </div>
+    <div class="bars" id="s2bars"></div>
+    <p class="eq" id="s2eq"></p>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="bench" aria-labelledby="s3">
+    <header>
+      <span class="eyebrow">Step 3</span>
+      <h2 id="s3">Adding: make the pieces match</h2>
+      <p class="say">You can only add pieces that are the same size. Cut both bars until their pieces match, then count all the colored pieces together.</p>
+    </header>
+    <p class="eq" id="s3eq"></p>
+    <div class="bars" id="s3bars"></div>
+    <div class="steps" id="s3steps"></div>
+    <div class="row">
+      <button class="primary" id="s3next">Next step</button>
+      <button id="s3wrong">What about adding straight across?</button>
+      <button id="s3new">New problem</button>
+    </div>
+  </section>
+
+  <!-- Step 4 -->
+  <section class="bench" aria-labelledby="s4">
+    <header>
+      <span class="eyebrow">Step 4</span>
+      <h2 id="s4">Simplify: glue pieces back together</h2>
+      <p class="say">If the pieces can be glued into bigger equal groups, with nothing left over on top or bottom, the fraction gets simpler. The biggest group that works is the GCF of the top and bottom.</p>
+    </header>
+    <div class="slider">
+      <label for="s4g">Glue pieces in groups of <output id="s4gout">1</output></label>
+      <input type="range" id="s4g" min="1" max="12" value="1">
+    </div>
+    <div class="bars" id="s4bars"></div>
+    <div class="status" id="s4status" aria-live="polite"></div>
+    <div class="row"><button id="s4new">New fraction</button></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+const gcd = (a, b) => (b ? gcd(b, a % b) : Math.abs(a));
+const lcm = (a, b) => (a / gcd(a, b)) * b;
+const simp = (n, d) => { const g = gcd(n, d) || 1; return [n / g, d / g]; };
+const show = (n, d) => (d === 1 ? `${n}` : `${n}/${d}`);
+
+/* A fraction as whole bars. fills: list of [count, cls] colored in order. cut: draw a heavy line every `cut` cells. */
+function barsHTML(den, fills, { cut = 0, minBars = 1 } = {}) {
+  const total = fills.reduce((s, [c]) => s + c, 0);
+  const nBars = Math.max(minBars, Math.ceil(total / den));
+  const classes = [];
+  fills.forEach(([c, cls]) => { for (let i = 0; i < c; i++) classes.push(cls); });
+  let html = "";
+  for (let b = 0; b < nBars; b++) {
+    let cells = "";
+    for (let i = 0; i < den; i++) {
+      const idx = b * den + i;
+      const cutCls = cut && (i + 1) % cut === 0 && i !== den - 1 ? " cutA" : "";
+      cells += `<span class="cell ${classes[idx] || ""}${cutCls}"></span>`;
+    }
+    html += `<div class="bar">${cells}</div>`;
+  }
+  return html;
+}
+const barRow = (name, inner) => `<div class="barrow"><span class="name">${name}</span><div class="barset">${inner}</div></div>`;
+
+/* Step 1 */
+function s1() {
+  const n = +$("s1n").value, d = +$("s1d").value;
+  $("s1nout").textContent = n;
+  $("s1dout").textContent = d;
+  $("s1bars").innerHTML = barRow(`${n}/${d}`, barsHTML(d, [[n, "A"]]));
+  let words = `${n} piece${n === 1 ? "" : "s"}, each 1/${d} of a bar`;
+  if (n === d) words += " = exactly 1 whole";
+  else if (n > d) {
+    const w = Math.floor(n / d), r = n % d;
+    words += ` = ${w} whole${w > 1 ? "s" : ""}${r ? ` and ${r}/${d}` : ""}`;
+  }
+  $("s1eq").innerHTML = `${n}/${d}<br><span style="font-size:1rem;color:var(--muted)">${words}</span>`;
+}
+$("s1n").addEventListener("input", s1);
+$("s1d").addEventListener("input", s1);
+s1();
+
+/* Step 2 */
+const S2_FRACS = [[1, 2], [2, 3], [3, 4], [1, 3], [2, 5], [3, 5], [1, 4], [5, 6]];
+function s2() {
+  const [n, d] = S2_FRACS[+$("s2f").value];
+  const k = +$("s2k").value;
+  $("s2fout").textContent = `${n}/${d}`;
+  $("s2kout").textContent = k;
+  $("s2bars").innerHTML =
+    barRow(`${n}/${d}`, barsHTML(d, [[n, "A"]])) +
+    barRow(`${n * k}/${d * k}`, barsHTML(d * k, [[n * k, "A"]], { cut: k }));
+  $("s2eq").innerHTML = k === 1
+    ? `Slide "cut each piece" to see it.`
+    : `${n}/${d} = ${n * k}/${d * k}<br><span style="font-size:1rem;color:var(--muted)">top × ${k}, bottom × ${k}</span>`;
+}
+$("s2f").addEventListener("input", s2);
+$("s2k").addEventListener("input", s2);
+s2();
+
+/* Step 3: add with a common bottom, one step at a time */
+let s3 = {};
+function s3New(preset) {
+  let a, b, c, d, L;
+  if (preset) [a, b, c, d] = preset;
+  else do {
+    b = rnd(2, 8); d = rnd(2, 8); a = rnd(1, b + 2); c = rnd(1, d + 2);
+    L = lcm(b, d);
+  } while (b === d || L > 24 || gcd(a, b) !== 1 || gcd(c, d) !== 1);
+  L = lcm(b, d);
+  s3 = { a, b, c, d, L, step: 0, wrong: false };
+  s3Draw();
+}
+function s3Draw() {
+  const { a, b, c, d, L, step, wrong } = s3;
+  const ka = L / b, kc = L / d;
+  const A = a * ka, C = c * kc, sum = A + C;
+  const [sn, sd] = simp(sum, L);
+  $("s3eq").innerHTML = `<span class="ca">${a}/${b}</span> + <span class="cb">${c}/${d}</span> = ?`;
+  let rows;
+  if (step === 0) {
+    rows = barRow(`<span class="ca">${a}/${b}</span>`, barsHTML(b, [[a, "A"]])) +
+           barRow(`<span class="cb">${c}/${d}</span>`, barsHTML(d, [[c, "B"]]));
+  } else {
+    rows = barRow(`<span class="ca">${A}/${L}</span>`, barsHTML(L, [[A, "A"]], { cut: ka })) +
+           barRow(`<span class="cb">${C}/${L}</span>`, barsHTML(L, [[C, "B"]], { cut: kc }));
+    if (step >= 2) rows += barRow(`${sum}/${L}`, barsHTML(L, [[A, "A"], [C, "B"]]));
+  }
+  if (wrong) {
+    const wn = a + c, wd = b + d;
+    rows += barRow(`<span class="bad">${wn}/${wd}?</span>`, barsHTML(wd, [[wn, "wrong"]]));
+  }
+  $("s3bars").innerHTML = rows;
+  const steps = [];
+  if (step >= 1) steps.push(`<p><strong>Match the pieces.</strong> The smallest size both bottoms fit into is the LCM of ${b} and ${d}: <strong>${L}</strong>. Cut <span class="ca">each ${b}th into ${ka}</span> and <span class="cb">each ${d}th into ${kc}</span>: ${a}/${b} = ${A}/${L} and ${c}/${d} = ${C}/${L}.</p>`);
+  if (step >= 2) steps.push(`<p><strong>Add the tops.</strong> Same-size pieces, so count them: ${A} + ${C} = ${sum}. The bottom stays ${L}: <strong>${sum}/${L}</strong>.</p>`);
+  if (step >= 3) {
+    const g = gcd(sum, L);
+    steps.push(g > 1
+      ? `<p><strong>Simplify.</strong> ${sum} and ${L} can both be divided by ${g} (their GCF): <strong>${show(sn, sd)}</strong>.</p>`
+      : `<p><strong>Simplify?</strong> ${sum} and ${L} share no factor except 1, so ${sum}/${L} is already as simple as it gets.</p>`);
+    steps.push(`<p class="eq">${a}/${b} + ${c}/${d} = ${show(sn, sd)}</p>`);
+  }
+  if (wrong) {
+    steps.push(`<p class="bad"><strong>Straight across gives ${a + c}/${b + d}.</strong> Look at its bar: ${(a + c) / (b + d) < a / b ? `it's smaller than ${a}/${b} alone, so it can't be the answer.` : "it doesn't match the real total."} Adding the bottoms changes the piece size; it doesn't add anything.</p>`);
+  }
+  if (step === 0 && !wrong) steps.push(`<p>The pieces are different sizes, so you can't just count them yet. Press <strong>Next step</strong>.</p>`);
+  $("s3steps").innerHTML = steps.join("");
+  $("s3next").disabled = step >= 3;
+}
+$("s3next").onclick = () => { s3.step++; s3Draw(); };
+$("s3wrong").onclick = () => { s3.wrong = !s3.wrong; s3Draw(); };
+$("s3new").onclick = () => s3New();
+s3New([1, 2, 1, 3]);
+
+/* Step 4: glue pieces */
+let s4 = {};
+function s4New(preset) {
+  let n, d;
+  if (preset) [n, d] = preset;
+  else do { d = rnd(4, 12); n = rnd(2, d - 1); } while (gcd(n, d) === 1);
+  s4 = { n, d };
+  $("s4g").max = d;
+  $("s4g").value = 1;
+  s4Draw();
+}
+function s4Draw() {
+  const { n, d } = s4;
+  const g = +$("s4g").value;
+  $("s4gout").textContent = g;
+  const fits = n % g === 0 && d % g === 0;
+  const best = gcd(n, d);
+  $("s4bars").innerHTML = barRow(`${n}/${d}`, barsHTML(d, [[n, "M"]], { cut: g > 1 ? g : 0 })) +
+    (fits && g > 1 ? barRow(`${n / g}/${d / g}`, barsHTML(d / g, [[n / g, "M"]])) : "");
+  let msg;
+  if (g === 1) msg = `<p>Slide to glue pieces into groups.</p>`;
+  else if (!fits) msg = `<p class="bad">Groups of ${g} don't fit: ${n % g ? `the ${n} colored pieces` : `the ${d} pieces in the bar`} can't be split into ${g}s evenly.</p>`;
+  else if (g === best) msg = `<p class="big good">${n}/${d} = ${n / g}/${d / g}. Groups of ${g} is the biggest that works, so this is fully simplified.</p>`;
+  else msg = `<p class="big">${n}/${d} = ${n / g}/${d / g}. That works! Can a bigger group work too?</p>`;
+  $("s4status").innerHTML = msg + `<p style="color:var(--muted)">Group sizes that fit both ${n} and ${d}: ${Array.from({ length: d }, (_, i) => i + 1).filter((k) => n % k === 0 && d % k === 0).join(", ")}</p>`;
+}
+$("s4g").addEventListener("input", s4Draw);
+$("s4new").onclick = () => s4New();
+s4New([6, 8]);
+</script>
+<script>
+// Show every fraction like 5/6 as a stacked fraction, including ones the page writes later.
+(() => {
+  const FRAC = /(\d+)\/(\d+)/g;
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION"]);
+  function stack(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || SKIP.has(parent.tagName) || parent.closest("svg, .frac")) return NodeFilter.FILTER_REJECT;
+        FRAC.lastIndex = 0;
+        return FRAC.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      },
+    });
+    const found = [];
+    while (walker.nextNode()) found.push(walker.currentNode);
+    for (const node of found) {
+      const text = node.nodeValue, pieces = document.createDocumentFragment();
+      let last = 0;
+      for (const m of text.matchAll(FRAC)) {
+        pieces.append(text.slice(last, m.index));
+        const frac = document.createElement("span");
+        frac.className = "frac";
+        frac.innerHTML = `<span>${m[1]}</span><span>${m[2]}</span>`;
+        pieces.append(frac);
+        last = m.index + m[0].length;
+      }
+      pieces.append(text.slice(last));
+      node.replaceWith(pieces);
+    }
+  }
+  const wrap = document.querySelector(".wrap");
+  stack(wrap);
+  // Our own changes trigger the observer once more, find nothing left to stack, and stop.
+  new MutationObserver(() => stack(wrap)).observe(wrap, { childList: true, subtree: true, characterData: true });
+})();
+</script>
+</body>
+</html>

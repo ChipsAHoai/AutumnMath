@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seeing Slope</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: same graph-paper column as the other mocks; orange is always the run (sideways), purple the rise (up or down). */
+:root {
+  --paper: #f8fafd;
+  --gridline: #e2e9f3;
+  --surface: #ffffff;
+  --ink: #1b2737;
+  --muted: #5b6a7e;
+  --line: #cfd9e6;
+  --mark: #ffc83d;
+  --on-mark: #1b2737;
+  --cool: #1d6a86;
+  --cool-soft: #e3f1f6;
+  --a: #d9681a;
+  --b: #7650d0;
+  --good: #2f8a57;
+  --bad: #c8394d;
+  --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+    --line: #2d3a4d; --mark: #f0b429; --cool: #62b6d6; --cool-soft: #16303b;
+    --a: #f39a52; --b: #a88bf0; --good: #6cc596; --bad: #f07082; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+  --line: #2d3a4d; --mark: #f0b429; --cool: #62b6d6; --cool-soft: #16303b;
+  --a: #f39a52; --b: #a88bf0; --good: #6cc596; --bad: #f07082; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--gridline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font: 17px/1.55 var(--body);
+}
+.wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+h1, h2 { font-family: var(--display); font-weight: 800; line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.4rem, 7vw, 3.4rem); }
+h1 .hl { background: linear-gradient(transparent 55%, var(--mark) 55%); padding: 0 .1em; }
+h2 { font-size: 1.6rem; }
+p { margin: 0; }
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 60ch; }
+.eyebrow { font: 700 .78rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--cool); }
+.ca { color: var(--a); font-weight: 700; }
+.cb { color: var(--b); font-weight: 700; }
+
+.note { background: var(--cool-soft); border-radius: 14px; padding: 20px 22px; display: grid; gap: 10px; }
+.note h3 { margin: 0; font: 700 1.05rem var(--body); }
+.note ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+.bench {
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px;
+  padding: 24px; display: grid; gap: 18px; min-width: 0;
+}
+.bench header { display: grid; gap: 6px; }
+.say { max-width: 62ch; }
+
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button {
+  font: 700 .95rem var(--body); color: var(--ink); background: var(--surface);
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--cool); }
+button.primary { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
+
+.split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.graph { width: 100%; max-width: 440px; height: auto; display: block; touch-action: none; user-select: none; }
+.graph .gl { stroke: var(--line); stroke-width: 1; }
+.graph .ax { stroke: var(--muted); stroke-width: 2; }
+.graph .tick { font: 700 11px var(--body); fill: var(--muted); }
+.graph .ln { stroke: var(--cool); stroke-width: 3; }
+.graph .run { stroke: var(--a); stroke-width: 5; stroke-linecap: round; }
+.graph .rise { stroke: var(--b); stroke-width: 5; stroke-linecap: round; }
+.graph .stair { stroke-width: 4; stroke-linecap: round; }
+.graph .faint { opacity: .25; }
+.graph .lab { font: 800 15px var(--display); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+.graph .lab.r { fill: var(--a); }
+.graph .lab.u { fill: var(--b); }
+.graph .pt { fill: var(--ink); stroke: var(--surface); stroke-width: 3; }
+.graph .grab { fill: transparent; cursor: grab; }
+.graph .ptlab { font: 700 13px var(--body); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+
+.status {
+  background: var(--paper); border-radius: 12px; padding: 14px 16px;
+  display: grid; gap: 6px; font-variant-numeric: tabular-nums;
+}
+.status .big { font: 800 1.35rem var(--display); }
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+.hill { font: 800 1.1rem var(--display); }
+
+.question { font: 800 1.3rem var(--display); }
+.guess { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.guess input {
+  width: 7em; font: 700 1.05rem var(--body); padding: 8px 10px; border-radius: 10px;
+  border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.fb { font-weight: 700; }
+
+.kinds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.kind { border: 1.5px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 4px; justify-items: center; text-align: center; }
+.kind svg { width: 64px; height: 64px; }
+.kind svg line { stroke: var(--cool); stroke-width: 5; stroke-linecap: round; }
+.kind b { font-family: var(--display); font-size: 1.05rem; }
+.kind span { font-size: .85rem; color: var(--muted); }
+
+
+@media (max-width: 640px) {
+  .bench { padding: 18px; }
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Page basics (the mocks got these from the artifact viewer). */
+body { margin: 0; }
+[hidden] { display: none !important; }
+.topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.topics a {
+  font: 700 .9rem var(--body); color: var(--ink); text-decoration: none;
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 12px; background: var(--surface);
+}
+.topics a[aria-current="page"] { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+details.note summary { font-weight: 700; cursor: pointer; }
+details.note[open] summary { margin-bottom: 4px; }
+/* Same title highlight as the app: an underline pulled up behind the letters (a background sits below Baloo's descent). */
+h1 .hl {
+  background: none; padding: 0;
+  text-decoration: underline; text-decoration-color: var(--mark); text-decoration-thickness: .38em;
+  text-underline-offset: -.28em; text-decoration-skip-ink: none;
+}
+/* 5/6 drawn as 5 over a bar over 6 (see the script at the end of the page). */
+.frac {
+  display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle;
+  line-height: 1; font-size: .85em; margin: 0 .12em; font-variant-numeric: tabular-nums;
+}
+.frac > span:first-child { border-bottom: .09em solid currentColor; padding: 0 .12em .08em; }
+.frac > span:last-child { padding-top: .08em; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header style="display:grid;gap:12px">
+    <nav class="topics" aria-label="Topics"><a href="multiplication.html">Multiplication</a><a href="fractions.html">Fractions</a><a href="percent.html">Percents</a><a href="lcm-gcf.html">LCM & GCF</a><a href="algebra.html">Equations</a><a href="slope.html" aria-current="page">Slope</a></nav>
+    <h1>Seeing <span class="hl">Slope</span></h1>
+    <p class="lede">Slope says how steep a line is: how far it goes up for every step it goes across. Draw the staircase between two points and the slope is just the up over the across.</p>
+  </header>
+
+  <details class="note"><summary>For grown-ups: Why slope is tricky</summary>
+    <ul>
+      <li><strong>Mixing up which number goes on top.</strong> Rise (up and down) goes on top, run (across) goes on the bottom. Colors keep them apart here: orange run, purple rise.</li>
+      <li><strong>Subtracting negative numbers.</strong> The app's points go from −10 to 10, so she often has to work out things like 3 − (−4).</li>
+      <li><strong>Getting the sign right.</strong> A line that goes down from left to right has a negative slope, even though you can count the squares as positive.</li>
+    </ul>
+  </details>
+
+  <!-- Step 1 -->
+  <section class="bench" aria-labelledby="s1">
+    <header>
+      <span class="eyebrow">Step 1</span>
+      <h2 id="s1">Rise over run</h2>
+      <p class="say">Drag the two dots. To get from <strong>A</strong> to <strong>B</strong>, first walk <span class="ca">across (the run)</span>, then climb <span class="cb">up or down (the rise)</span>. Slope = <span class="cb">rise</span> ÷ <span class="ca">run</span>.</p>
+    </header>
+    <div class="split">
+      <svg class="graph" id="g1" viewBox="0 0 440 440" role="img" aria-label="Graph with two points you can drag"></svg>
+      <div class="status" id="s1status" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="bench" aria-labelledby="s2">
+    <header>
+      <span class="eyebrow">Step 2</span>
+      <h2 id="s2">Uphill, downhill, flat, cliff</h2>
+      <p class="say">Read a line from left to right, like reading a book. That tells you the sign before you do any math.</p>
+    </header>
+    <div class="kinds">
+      <div class="kind"><svg viewBox="0 0 64 64"><line x1="8" y1="56" x2="56" y2="8"/></svg><b>Uphill</b><span>positive slope</span></div>
+      <div class="kind"><svg viewBox="0 0 64 64"><line x1="8" y1="8" x2="56" y2="56"/></svg><b>Downhill</b><span>negative slope</span></div>
+      <div class="kind"><svg viewBox="0 0 64 64"><line x1="6" y1="32" x2="58" y2="32"/></svg><b>Flat</b><span>slope is 0</span></div>
+      <div class="kind"><svg viewBox="0 0 64 64"><line x1="32" y1="6" x2="32" y2="58"/></svg><b>Cliff</b><span>no slope: run is 0</span></div>
+    </div>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="bench" aria-labelledby="s3">
+    <header>
+      <span class="eyebrow">Step 3</span>
+      <h2 id="s3">From the numbers</h2>
+      <p class="say">The app gives two points. Subtract to find the run and the rise: second point minus first point, for both. Watch out for minus a minus.</p>
+    </header>
+    <p class="question" id="s3q"></p>
+    <div class="split">
+      <svg class="graph" id="g3" viewBox="0 0 440 440" role="img" aria-label="Graph of the two points"></svg>
+      <div style="display:grid;gap:12px">
+        <div class="status" id="s3status" aria-live="polite"></div>
+        <div class="row">
+          <button class="primary" id="s3next">Show next step</button>
+          <button id="s3new">New problem</button>
+        </div>
+        <div class="guess">
+          <label for="s3guess">Your answer</label>
+          <input id="s3guess" placeholder="like -3/4" autocomplete="off">
+          <button id="s3check">Check</button>
+          <span class="fb" id="s3fb" aria-live="polite"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 4 -->
+  <section class="bench" aria-labelledby="s4">
+    <header>
+      <span class="eyebrow">Step 4</span>
+      <h2 id="s4">Smaller steps, same slope</h2>
+      <p class="say">A big staircase can be split into small equal steps that land on the line. The small step is the simplified slope. It's the same as dividing the top and bottom by the same number.</p>
+    </header>
+    <div class="split">
+      <svg class="graph" id="g4" viewBox="0 0 440 440" role="img" aria-label="Big step split into small steps"></svg>
+      <div class="status" id="s4status"></div>
+    </div>
+    <div class="row"><button id="s4new">New line</button></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+const gcd = (a, b) => (b ? gcd(b, a % b) : Math.abs(a));
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, text) => {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  return e;
+};
+const SX = (x) => 220 + x * 20;
+const SY = (y) => 220 - y * 20;
+const neg = (n) => (n < 0 ? `(${n})` : `${n}`);
+function frac(rise, run) {
+  if (run === 0) return null;
+  const g = gcd(rise, run) || 1;
+  let n = rise / g, d = run / g;
+  if (d < 0) { n = -n; d = -d; }
+  return d === 1 ? `${n}` : `${n}/${d}`;
+}
+
+/* Draw grid, line, staircase and points. opts: {A, B, showRun, showRise, steps} */
+function drawGraph(svg, A, B, opts = {}) {
+  svg.replaceChildren();
+  for (let i = -10; i <= 10; i++) {
+    svg.append(el("line", { class: i === 0 ? "ax" : "gl", x1: SX(i), y1: SY(-10), x2: SX(i), y2: SY(10) }));
+    svg.append(el("line", { class: i === 0 ? "ax" : "gl", x1: SX(-10), y1: SY(i), x2: SX(10), y2: SY(i) }));
+    if (i && i % 5 === 0) {
+      svg.append(el("text", { class: "tick", x: SX(i), y: SY(0) + 15, "text-anchor": "middle" }, i));
+      svg.append(el("text", { class: "tick", x: SX(0) - 6, y: SY(i) + 4, "text-anchor": "end" }, i));
+    }
+  }
+  // The line through both points, clipped to the grid.
+  const defs = el("defs", {});
+  const clip = el("clipPath", { id: svg.id + "clip" });
+  clip.append(el("rect", { x: SX(-10), y: SY(10), width: 400, height: 400 }));
+  defs.append(clip);
+  svg.append(defs);
+  if (A.x !== B.x || A.y !== B.y) {
+    const dx = B.x - A.x, dy = B.y - A.y, k = 40;
+    svg.append(el("line", { class: "ln", "clip-path": `url(#${svg.id}clip)`,
+      x1: SX(A.x - k * dx), y1: SY(A.y - k * dy), x2: SX(B.x + k * dx), y2: SY(B.y + k * dy) }));
+  }
+  const corner = { x: B.x, y: A.y };
+  const run = B.x - A.x, rise = B.y - A.y;
+  if (opts.steps > 1) {
+    // Big staircase faint, small equal steps bold.
+    const n = opts.steps, sr = run / n, su = rise / n;
+    svg.append(el("line", { class: "run faint", x1: SX(A.x), y1: SY(A.y), x2: SX(corner.x), y2: SY(corner.y) }));
+    svg.append(el("line", { class: "rise faint", x1: SX(corner.x), y1: SY(corner.y), x2: SX(B.x), y2: SY(B.y) }));
+    for (let i = 0; i < n; i++) {
+      const x0 = A.x + i * sr, y0 = A.y + i * su;
+      svg.append(el("line", { class: "run stair", x1: SX(x0), y1: SY(y0), x2: SX(x0 + sr), y2: SY(y0) }));
+      svg.append(el("line", { class: "rise stair", x1: SX(x0 + sr), y1: SY(y0), x2: SX(x0 + sr), y2: SY(y0 + su) }));
+      svg.append(el("circle", { class: "pt", cx: SX(x0 + sr), cy: SY(y0 + su), r: 5 }));
+    }
+  } else {
+    if (opts.showRun !== false && run) {
+      svg.append(el("line", { class: "run", x1: SX(A.x), y1: SY(A.y), x2: SX(corner.x), y2: SY(corner.y) }));
+      svg.append(el("text", { class: "lab r", x: (SX(A.x) + SX(corner.x)) / 2, y: SY(A.y) + (rise > 0 ? 20 : -10), "text-anchor": "middle" },
+        `run ${run > 0 ? "+" : ""}${run}`));
+    }
+    if (opts.showRise !== false && rise) {
+      svg.append(el("line", { class: "rise", x1: SX(corner.x), y1: SY(corner.y), x2: SX(B.x), y2: SY(B.y) }));
+      svg.append(el("text", { class: "lab u", x: SX(B.x) + (run >= 0 ? 8 : -8), y: (SY(A.y) + SY(B.y)) / 2 + 5, "text-anchor": run >= 0 ? "start" : "end" },
+        `rise ${rise > 0 ? "+" : ""}${rise}`));
+    }
+  }
+  [[A, opts.names?.[0] ?? "A"], [B, opts.names?.[1] ?? "B"]].forEach(([p, name], i) => {
+    svg.append(el("circle", { class: "pt", cx: SX(p.x), cy: SY(p.y), r: 8 }));
+    svg.append(el("text", { class: "ptlab", x: SX(p.x) + 10, y: SY(p.y) - 10 }, `${name} (${p.x}, ${p.y})`));
+    if (opts.drag) svg.append(el("circle", { class: "grab", cx: SX(p.x), cy: SY(p.y), r: 18, "data-i": i }));
+  });
+}
+
+/* Step 1: drag */
+const s1 = { A: { x: -4, y: -2 }, B: { x: 4, y: 2 } };
+let dragging = null;
+function s1Draw() {
+  drawGraph($("g1"), s1.A, s1.B, { drag: true });
+  const run = s1.B.x - s1.A.x, rise = s1.B.y - s1.A.y;
+  const dirRun = run > 0 ? `right ${run}` : run < 0 ? `left ${-run}` : "no steps across";
+  const dirRise = rise > 0 ? `up ${rise}` : rise < 0 ? `down ${-rise}` : "no climbing";
+  let slope, hill;
+  if (run === 0 && rise === 0) { slope = "Move the dots apart."; hill = ""; }
+  else if (run === 0) { slope = `Run is 0, and you can't divide by 0.`; hill = "Cliff: no slope"; }
+  else {
+    const f = frac(rise, run);
+    slope = `Slope = <span class="cb">${rise}</span> ÷ <span class="ca">${run}</span> = <strong>${f}</strong>`;
+    hill = rise === 0 ? "Flat: slope 0" : rise / run > 0 ? "Uphill: positive" : "Downhill: negative";
+  }
+  $("s1status").innerHTML = `
+    <p><span class="ca">Run: ${dirRun}</span> → ${run}</p>
+    <p><span class="cb">Rise: ${dirRise}</span> → ${rise}</p>
+    <p class="big">${slope}</p>
+    ${hill ? `<p class="hill">${hill}</p>` : ""}
+    <p style="color:var(--muted)">Going left counts as negative. Going down counts as negative.</p>`;
+}
+function svgPoint(svg, e) {
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+  const clamp = (v) => Math.max(-10, Math.min(10, Math.round(v)));
+  return { x: clamp((p.x - 220) / 20), y: clamp((220 - p.y) / 20) };
+}
+$("g1").addEventListener("pointerdown", (e) => {
+  const i = e.target.getAttribute?.("data-i");
+  if (i === null || i === undefined) return;
+  dragging = +i;
+  $("g1").setPointerCapture(e.pointerId);
+});
+$("g1").addEventListener("pointermove", (e) => {
+  if (dragging === null) return;
+  const p = svgPoint($("g1"), e);
+  const key = dragging ? "B" : "A";
+  if (p.x !== s1[key].x || p.y !== s1[key].y) { s1[key] = p; s1Draw(); }
+});
+["pointerup", "pointercancel"].forEach((ev) => $("g1").addEventListener(ev, () => { dragging = null; }));
+s1Draw();
+
+/* Step 3: app-style problem */
+let s3 = {};
+function s3New() {
+  let x1, y1, x2, y2;
+  do { x1 = rnd(-8, 8); y1 = rnd(-8, 8); x2 = rnd(-8, 8); y2 = rnd(-8, 8); } while (x1 === x2 || y1 === y2);
+  s3 = { A: { x: x1, y: y1 }, B: { x: x2, y: y2 }, step: 0 };
+  $("s3q").textContent = `Slope through (${x1},${y1}) and (${x2},${y2}) = ?`;
+  $("s3guess").value = "";
+  $("s3fb").textContent = "";
+  s3Draw();
+}
+function s3Draw() {
+  const { A, B, step } = s3;
+  const run = B.x - A.x, rise = B.y - A.y;
+  drawGraph($("g3"), A, B, { showRun: step >= 1, showRise: step >= 2, names: ["1st", "2nd"] });
+  const lines = [`<p>1st point (${A.x}, ${A.y}), 2nd point (${B.x}, ${B.y})</p>`];
+  if (step >= 1) lines.push(`<p><span class="ca">Run</span> = ${B.x} − ${neg(A.x)} = <strong class="ca">${run}</strong></p>`);
+  if (step >= 2) lines.push(`<p><span class="cb">Rise</span> = ${B.y} − ${neg(A.y)} = <strong class="cb">${rise}</strong></p>`);
+  if (step >= 3) {
+    const g = gcd(rise, run);
+    lines.push(`<p class="big">Slope = <span class="cb">${rise}</span>/<span class="ca">${run}</span>${g > 1 || run < 0 ? ` = ${frac(rise, run)}` : ""}</p>`);
+    if (g > 1) lines.push(`<p>Simplified by dividing top and bottom by ${g}.</p>`);
+    if (run < 0) lines.push(`<p>A minus on the bottom moves to the top.</p>`);
+  }
+  if (step === 0) lines.push(`<p>Press <strong>Show next step</strong> to find the run first.</p>`);
+  $("s3status").innerHTML = lines.join("");
+  $("s3next").disabled = step >= 3;
+}
+function parseFrac(s) {
+  const m = s.trim().replace("−", "-").match(/^(-?\d+)(?:\s*\/\s*(-?\d+))?$/);
+  if (!m) return null;
+  const n = +m[1], d = m[2] === undefined ? 1 : +m[2];
+  return d === 0 ? null : [n, d];
+}
+$("s3next").onclick = () => { s3.step++; s3Draw(); };
+$("s3new").onclick = s3New;
+$("s3check").onclick = () => {
+  const f = parseFrac($("s3guess").value), fb = $("s3fb");
+  const run = s3.B.x - s3.A.x, rise = s3.B.y - s3.A.y;
+  if (!f) { fb.textContent = "Type a number or a fraction, like -3/4."; fb.className = "fb bad"; return; }
+  if (f[0] * run === rise * f[1]) {
+    const simplest = frac(rise, run);
+    const typed = `${f[0]}${f[1] === 1 ? "" : "/" + f[1]}`;
+    fb.textContent = typed === simplest ? "Yes!" : `Right value! In simplest form it's ${simplest}.`;
+    fb.className = "fb good";
+    s3.step = 3; s3Draw();
+  } else { fb.textContent = "Not yet. Try the next step."; fb.className = "fb bad"; }
+};
+$("s3guess").addEventListener("keydown", (e) => { if (e.key === "Enter") $("s3check").click(); });
+s3New();
+
+/* Step 4: big step = n small steps */
+function s4New() {
+  const pairs = [[1, 2], [2, 1], [3, 2], [2, 3], [1, 3], [3, 1], [-1, 2], [-2, 1], [-3, 2], [-2, 3], [1, 1], [-1, 1]];
+  let r, u, n, A;
+  do {
+    [u, r] = pairs[rnd(0, pairs.length - 1)];
+    n = rnd(2, 4);
+    A = { x: -Math.floor((r * n) / 2), y: -Math.floor((u * n) / 2) };
+  } while (Math.abs(A.y + u * n) > 9 || Math.abs(A.y) > 9);
+  const B = { x: A.x + r * n, y: A.y + u * n };
+  drawGraph($("g4"), A, B, { steps: n });
+  const run = r * n, rise = u * n;
+  $("s4status").innerHTML = `
+    <p>Big step: <span class="cb">rise ${rise}</span> over <span class="ca">run ${run}</span> → ${rise}/${run}</p>
+    <p>Split into ${n} equal small steps: each is <span class="cb">${u > 0 ? "up" : "down"} ${Math.abs(u)}</span>, <span class="ca">right ${r}</span>.</p>
+    <p class="big">${rise}/${run} = ${frac(rise, run)}</p>
+    <p>That's dividing top and bottom by ${n}. Every small step lands right on the line.</p>`;
+}
+$("s4new").onclick = s4New;
+s4New();
+</script>
+<script>
+// Show every fraction like 5/6 as a stacked fraction, including ones the page writes later.
+(() => {
+  const FRAC = /(\d+)\/(\d+)/g;
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION"]);
+  function stack(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || SKIP.has(parent.tagName) || parent.closest("svg, .frac")) return NodeFilter.FILTER_REJECT;
+        FRAC.lastIndex = 0;
+        return FRAC.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      },
+    });
+    const found = [];
+    while (walker.nextNode()) found.push(walker.currentNode);
+    for (const node of found) {
+      const text = node.nodeValue, pieces = document.createDocumentFragment();
+      let last = 0;
+      for (const m of text.matchAll(FRAC)) {
+        pieces.append(text.slice(last, m.index));
+        const frac = document.createElement("span");
+        frac.className = "frac";
+        frac.innerHTML = `<span>${m[1]}</span><span>${m[2]}</span>`;
+        pieces.append(frac);
+        last = m.index + m[0].length;
+      }
+      pieces.append(text.slice(last));
+      node.replaceWith(pieces);
+    }
+  }
+  const wrap = document.querySelector(".wrap");
+  stack(wrap);
+  // Our own changes trigger the observer once more, find nothing left to stack, and stop.
+  new MutationObserver(() => stack(wrap)).observe(wrap, { childList: true, subtree: true, characterData: true });
+})();
+</script>
+</body>
+</html>

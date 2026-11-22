@@ -43,7 +43,7 @@ def lcm(quiz):
     quiz.solution = math.lcm(a, b)
     story = random.choice(LCM_STORIES)
     quiz.question = story.format(a=a, b=b)
-    quiz.hint = {"kind": "venn", "a": a, "b": b}
+    quiz.hint = {"kind": "venn", "a": a, "b": b, "goal": "lcm"}
     quiz.follow_up_questions = make_follow_ups('lcm', story, a, b)
     quiz.clear_plot()
 
@@ -53,7 +53,7 @@ def gcf(quiz):
     quiz.solution = math.gcd(a, b)
     story = random.choice(GCF_STORIES)
     quiz.question = story.format(a=a, b=b)
-    quiz.hint = {"kind": "venn", "a": a, "b": b}
+    quiz.hint = {"kind": "venn", "a": a, "b": b, "goal": "gcf"}
     quiz.follow_up_questions = make_follow_ups('gcf', story, a, b)
     quiz.clear_plot()
 

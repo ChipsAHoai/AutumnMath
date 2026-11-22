@@ -13,6 +13,7 @@ def generate(quiz):
     quiz.solution = Fraction(delta_y, delta_x)
     quiz.question = f"Slope through ({x1},{y1}) and ({x2},{y2}) = ? (fraction)"
     quiz.slope_points = [(x1, y1), (x2, y2)]
+    quiz.hint = {"kind": "slope", "x1": x1, "y1": y1, "x2": x2, "y2": y2}
     draw_plot(quiz)
 
 

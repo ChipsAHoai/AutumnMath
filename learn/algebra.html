@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Balancing Equations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: same graph-paper column as the other mocks; orange tiles are x, yellow coins are numbers, red coins are minus numbers. */
+:root {
+  --paper: #f8fafd;
+  --gridline: #e2e9f3;
+  --surface: #ffffff;
+  --ink: #1b2737;
+  --muted: #5b6a7e;
+  --line: #cfd9e6;
+  --mark: #ffc83d;
+  --on-mark: #1b2737;
+  --cool: #1d6a86;
+  --cool-soft: #e3f1f6;
+  --x: #d9681a;
+  --on-x: #ffffff;
+  --grp: #7650d0;
+  --good: #2f8a57;
+  --bad: #c8394d;
+  --bad-soft: #fbe3e7;
+  --display: "Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+    --line: #2d3a4d; --mark: #f0b429; --cool: #62b6d6; --cool-soft: #16303b;
+    --x: #e8823a; --on-x: #10161f; --grp: #a88bf0; --good: #6cc596; --bad: #f07082; --bad-soft: #3a1c24;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #10161f; --gridline: #1a2331; --surface: #172131; --ink: #e8eef6; --muted: #9babbf;
+  --line: #2d3a4d; --mark: #f0b429; --cool: #62b6d6; --cool-soft: #16303b;
+  --x: #e8823a; --on-x: #10161f; --grp: #a88bf0; --good: #6cc596; --bad: #f07082; --bad-soft: #3a1c24;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--gridline) 1px, transparent 1px),
+    linear-gradient(90deg, var(--gridline) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font: 17px/1.55 var(--body);
+}
+.wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px;
+}
+h1, h2 { font-family: var(--display); font-weight: 800; line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.4rem, 7vw, 3.4rem); }
+h1 .hl { background: linear-gradient(transparent 55%, var(--mark) 55%); padding: 0 .1em; }
+h2 { font-size: 1.6rem; }
+p { margin: 0; }
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 60ch; }
+.eyebrow { font: 700 .78rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--cool); }
+
+.note { background: var(--cool-soft); border-radius: 14px; padding: 20px 22px; display: grid; gap: 10px; }
+.note h3 { margin: 0; font: 700 1.05rem var(--body); }
+.note ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+.bench {
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px;
+  padding: 24px; display: grid; gap: 18px; min-width: 0;
+}
+.bench header { display: grid; gap: 6px; }
+.say { max-width: 62ch; }
+
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button {
+  font: 700 .95rem var(--body); color: var(--ink); background: var(--surface);
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--cool); }
+button.primary { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+button[aria-pressed="true"] { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
+
+.eq {
+  font: 800 clamp(1.4rem, 5vw, 2rem)/1.2 var(--display); text-align: center;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+
+/* balance scale */
+.scale { display: grid; justify-items: center; padding-top: 10px; }
+.beam {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end; gap: 8px; transform-origin: 50% 100%; transition: transform .45s;
+}
+.pan {
+  min-height: 96px; padding: 8px 6px 10px; border-bottom: 6px solid var(--ink); border-radius: 0 0 6px 6px;
+  display: flex; flex-wrap: wrap; align-content: flex-end; justify-content: center; gap: 5px;
+}
+.mid { font: 800 1.8rem var(--display); padding-bottom: 14px; color: var(--muted); }
+.post { width: 8px; height: 36px; background: var(--ink); }
+.base { width: 0; height: 0; border-left: 34px solid transparent; border-right: 34px solid transparent; border-bottom: 26px solid var(--ink); }
+
+.tx, .tk {
+  height: 36px; min-width: 36px; display: inline-grid; place-items: center;
+  font: 800 1.05rem var(--display); font-variant-numeric: tabular-nums; padding: 0 6px;
+}
+.tx { background: var(--x); color: var(--on-x); border-radius: 7px; }
+.tx small { font-size: .75rem; margin-right: 1px; }
+.tx.leaving {
+  background: var(--bad-soft); color: var(--bad); outline: 3px dashed var(--bad); outline-offset: 1px;
+  text-decoration: line-through 3px; animation: wobble .9s ease-in-out infinite;
+}
+@keyframes wobble { 50% { transform: translateY(-4px); } }
+.pending {
+  text-align: center; font-weight: 700; color: var(--bad);
+  max-width: 52ch; justify-self: center;
+}
+.tk { background: var(--mark); color: var(--on-mark); border-radius: 18px; }
+.tk.neg { background: var(--bad-soft); color: var(--bad); border: 2px dashed var(--bad); }
+.tgrp {
+  display: inline-flex; gap: 3px; padding: 3px; border: 2px dashed var(--grp); border-radius: 10px;
+}
+.tdiv {
+  display: inline-grid; gap: 3px; padding: 4px; border: 2px solid var(--grp); border-radius: 10px; justify-items: center;
+}
+.tdiv .inner { display: flex; gap: 3px; }
+.tdiv .cut { font: 700 .8rem var(--body); color: var(--grp); border-top: 2px solid var(--grp); width: 100%; text-align: center; }
+
+.history { display: grid; gap: 4px; justify-items: center; font-variant-numeric: tabular-nums; }
+.history .h-eq { font: 800 1.15rem var(--display); }
+.history .h-move { font-size: .92rem; color: var(--cool); font-weight: 700; }
+.history .h-move::before { content: "↓ "; }
+.status {
+  background: var(--paper); border-radius: 12px; padding: 14px 16px;
+  display: grid; gap: 6px; font-variant-numeric: tabular-nums;
+}
+.status .big { font: 800 1.35rem var(--display); }
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+
+.slider { display: grid; gap: 6px; }
+.slider label { font-weight: 700; display: flex; justify-content: space-between; gap: 12px; }
+.slider output { color: var(--cool); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--cool); }
+
+/* undo machine */
+.machine { display: grid; gap: 14px; }
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chain .lbl { font-weight: 700; min-width: 5.5em; }
+.val {
+  font: 800 1.15rem var(--display); min-width: 44px; height: 44px; padding: 0 10px; border-radius: 10px;
+  display: inline-grid; place-items: center; border: 2px solid var(--line); font-variant-numeric: tabular-nums;
+}
+.val.x { background: var(--x); color: var(--on-x); border-color: var(--x); }
+.val.ans { background: var(--mark); color: var(--on-mark); border-color: var(--mark); }
+.val.hidden { color: transparent; }
+.op { font: 700 .95rem var(--body); color: var(--cool); white-space: nowrap; }
+.op.back { color: var(--good); }
+
+
+@media (max-width: 600px) {
+  .bench { padding: 18px; }
+  .tx, .tk { height: 30px; min-width: 30px; font-size: .9rem; }
+  .pan { min-height: 80px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Page basics (the mocks got these from the artifact viewer). */
+body { margin: 0; }
+[hidden] { display: none !important; }
+.topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.topics a {
+  font: 700 .9rem var(--body); color: var(--ink); text-decoration: none;
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 12px; background: var(--surface);
+}
+.topics a[aria-current="page"] { background: var(--cool); border-color: var(--cool); color: var(--surface); }
+details.note summary { font-weight: 700; cursor: pointer; }
+details.note[open] summary { margin-bottom: 4px; }
+/* Same title highlight as the app: an underline pulled up behind the letters (a background sits below Baloo's descent). */
+h1 .hl {
+  background: none; padding: 0;
+  text-decoration: underline; text-decoration-color: var(--mark); text-decoration-thickness: .38em;
+  text-underline-offset: -.28em; text-decoration-skip-ink: none;
+}
+/* 5/6 drawn as 5 over a bar over 6 (see the script at the end of the page). */
+.frac {
+  display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle;
+  line-height: 1; font-size: .85em; margin: 0 .12em; font-variant-numeric: tabular-nums;
+}
+.frac > span:first-child { border-bottom: .09em solid currentColor; padding: 0 .12em .08em; }
+.frac > span:last-child { padding-top: .08em; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header style="display:grid;gap:12px">
+    <nav class="topics" aria-label="Topics"><a href="multiplication.html">Multiplication</a><a href="fractions.html">Fractions</a><a href="percent.html">Percents</a><a href="lcm-gcf.html">LCM & GCF</a><a href="algebra.html" aria-current="page">Equations</a><a href="slope.html">Slope</a></nav>
+    <h1>Balancing <span class="hl">Equations</span></h1>
+    <p class="lede">An equation is a balance scale. The = sign means both sides weigh the same. You can do anything you like, as long as you do it to both sides so the scale stays level.</p>
+  </header>
+
+  <details class="note"><summary>For grown-ups: Why these are tricky</summary>
+    <ul>
+      <li><strong>Doing something to only one side.</strong> The scale picture makes this mistake visible: one side drops.</li>
+      <li><strong>Not knowing which move comes first.</strong> Undo things in reverse order: the last thing done to x comes off first.</li>
+      <li><strong>x on both sides</strong> (multi_alg), <strong>parentheses and fractions</strong> (hard_alg). Each needs one extra move, which steps 3 and 4 show.</li>
+    </ul>
+  </details>
+
+  <!-- Step 1 -->
+  <section class="bench" aria-labelledby="s1">
+    <header>
+      <span class="eyebrow">Step 1</span>
+      <h2 id="s1">What number makes it balance?</h2>
+      <p class="say">Every orange <strong>x</strong> tile weighs the same secret amount. Slide to try different weights. The scale tips toward the heavier side. When it's level, you've found x.</p>
+    </header>
+    <p class="eq" id="s1eq"></p>
+    <div id="s1scale"></div>
+    <div class="slider">
+      <label for="s1range">Try x = <output id="s1out">2</output></label>
+      <input type="range" id="s1range" min="0" max="15" value="2">
+    </div>
+    <div class="status" id="s1status" aria-live="polite"></div>
+    <div class="row"><button id="s1new">New equation</button></div>
+  </section>
+
+  <!-- Step 2 -->
+  <section class="bench" aria-labelledby="s2">
+    <header>
+      <span class="eyebrow">Step 2</span>
+      <h2 id="s2">Undo in reverse order</h2>
+      <p class="say">Read the equation as a machine: x goes in, things happen to it, and the answer comes out. To find x, run the machine backwards, doing the opposite of each step.</p>
+    </header>
+    <p class="eq" id="s2eq"></p>
+    <div class="machine" id="s2machine"></div>
+    <div class="row">
+      <button class="primary" id="s2next">Undo next step</button>
+      <button id="s2new">New equation</button>
+    </div>
+  </section>
+
+  <!-- Step 3 -->
+  <section class="bench" aria-labelledby="s3">
+    <header>
+      <span class="eyebrow">Step 3 · multi_alg</span>
+      <h2 id="s3">x on both sides</h2>
+      <p class="say">First get all the x tiles on one side: take the <em>smaller</em> pile of x's off both sides. Then it's an equation like step 2. Red dashed coins are minus numbers: adding the same amount cancels them.</p>
+    </header>
+    <div id="s3walk"></div>
+    <div class="row"><button id="s3new">New equation</button></div>
+  </section>
+
+  <!-- Step 4 -->
+  <section class="bench" aria-labelledby="s4">
+    <header>
+      <span class="eyebrow">Step 4 · hard_alg</span>
+      <h2 id="s4">Parentheses and fractions</h2>
+      <p class="say">Each new kind of equation needs one new first move. Pick a kind and step through it.</p>
+    </header>
+    <div class="row" role="group" aria-label="Kind of equation" id="s4kinds"></div>
+    <div id="s4walk"></div>
+    <div class="row"><button id="s4new">New equation</button></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const gcd = (a, b) => (b ? gcd(b, a % b) : Math.abs(a));
+const nonzero = (lo, hi) => { let v; do { v = rnd(lo, hi); } while (v === 0); return v; };
+
+/* ---------- terms: x tiles, number coins, groups ---------- */
+const X = (n) => ({ t: "x", n });
+const K = (v) => ({ t: "k", v });
+const G = (m, inner) => ({ t: "grp", m, inner });
+const D = (d, inner) => ({ t: "div", d, inner });
+const FX = (p, q) => ({ t: "fx", p, q });
+const FR = (num, den) => ({ t: "fr", num, den });
+const isX = (term) => term.t === "x" || term.t === "fx";
+
+function termText(term) {
+  switch (term.t) {
+    case "x": return { neg: false, s: term.n === 1 ? "x" : `${term.n}x` };
+    case "k": return { neg: term.v < 0, s: `${Math.abs(term.v)}` };
+    case "fr": return { neg: term.num < 0, s: `${Math.abs(term.num)}/${term.den}` };
+    case "fx": return { neg: false, s: `(${term.p}/${term.q})x` };
+    case "grp": return { neg: false, s: `${term.m}(${sideText(term.inner)})` };
+    case "div": return { neg: false, s: `(${sideText(term.inner)}) / ${term.d}` };
+  }
+}
+function sideText(terms) {
+  if (!terms.length) return "0";
+  return terms.map(termText).map(({ neg, s }, i) =>
+    i === 0 ? (neg ? "−" : "") + s : (neg ? " − " : " + ") + s).join("");
+}
+const eqText = (L, R) => `${sideText(L)} = ${sideText(R)}`;
+
+function evalSide(terms, x) {
+  return terms.reduce((sum, term) => sum + ({
+    x: () => term.n * x,
+    k: () => term.v,
+    fr: () => term.num / term.den,
+    fx: () => (term.p / term.q) * x,
+    grp: () => term.m * evalSide(term.inner, x),
+    div: () => evalSide(term.inner, x) / term.d,
+  })[term.t](), 0);
+}
+
+const MAX_TILES = 6;
+function tileHTML(term) {
+  switch (term.t) {
+    case "x":
+      return term.n <= MAX_TILES ? '<span class="tx">x</span>'.repeat(term.n) : `<span class="tx">${term.n}x</span>`;
+    case "k":
+      return `<span class="tk${term.v < 0 ? " neg" : ""}">${term.v < 0 ? "−" : ""}${Math.abs(term.v)}</span>`;
+    case "fr":
+      return `<span class="tk${term.num < 0 ? " neg" : ""}">${term.num < 0 ? "−" : ""}${Math.abs(term.num)}/${term.den}</span>`;
+    case "fx":
+      return `<span class="tx"><span><small>${term.p}/${term.q}</small>x</span></span>`;
+    case "grp":
+      // Show the group as m identical bags, so opening the parentheses is just counting.
+      return `<span class="tgrp">${term.inner.map(tileHTML).join("")}</span>`.repeat(term.m);
+    case "div":
+      return `<span class="tdiv"><span class="inner">${term.inner.map(tileHTML).join("")}</span><span class="cut">÷ ${term.d}</span></span>`;
+  }
+}
+// `leave` x tiles on this pan are drawn one by one and marked as about to come off.
+function panHTML(side, leave = 0) {
+  return side.map((t) => {
+    if (t.t !== "x" || !leave) return tileHTML(t);
+    const going = Math.min(leave, t.n);
+    return '<span class="tx leaving">x</span>'.repeat(going) + (t.n > going ? tileHTML(X(t.n - going)) : "");
+  }).join("");
+}
+function scaleHTML(L, R, tilt = 0, leave = 0) {
+  return `<div class="scale">
+    <div class="beam" style="transform: rotate(${tilt}deg)">
+      <div class="pan">${panHTML(L, leave)}</div>
+      <div class="mid">=</div>
+      <div class="pan">${panHTML(R, leave)}</div>
+    </div>
+    <div class="post"></div><div class="base"></div>
+  </div>`;
+}
+
+/* ---------- moves: each one does the same thing to both sides ---------- */
+const xCount = (side) => side.filter((t) => t.t === "x").reduce((s, t) => s + t.n, 0);
+const kSum = (side) => side.filter((t) => t.t === "k").reduce((s, t) => s + t.v, 0);
+const xLabel = (n) => (n === 1 ? "x" : `${n}x`);
+const orZero = (side) => (side.length ? side : [K(0)]);
+
+function moveX(L, R) {
+  const m = Math.min(xCount(L), xCount(R));
+  const take = (side) => orZero(side.map((t) => (t.t === "x" ? X(t.n - m) : t)).filter((t) => !(t.t === "x" && t.n === 0)));
+  return { L: take(L), R: take(R), take: m, move: `Take ${xLabel(m)} off both sides (the smaller pile of x's)` };
+}
+function moveConst(L, R) {
+  const xLeft = L.some(isX);
+  const xs = xLeft ? L : R, os = xLeft ? R : L;
+  const k = kSum(xs);
+  const newXs = xs.filter((t) => t.t !== "k");
+  const newOs = [K(kSum(os) - k)];
+  const move = k > 0 ? `Take ${k} away from both sides` : `Add ${-k} to both sides (it cancels the −${-k})`;
+  return xLeft ? { L: newXs, R: newOs, move } : { L: newOs, R: newXs, move };
+}
+function moveDivide(L, R) {
+  const xLeft = L.some(isX);
+  const xs = xLeft ? L : R, os = xLeft ? R : L;
+  const n = xCount(xs), v = kSum(os);
+  const g = gcd(v, n);
+  const result = v % n === 0 ? K(v / n) : FR(v / g, n / g);
+  const move = `Split both sides into ${n} equal groups (÷ ${n})`;
+  return xLeft ? { L: [X(1)], R: [result], move } : { L: [result], R: [X(1)], move };
+}
+function moveOpen(L, R) {
+  const open = (side) => side.flatMap((t) => (t.t === "grp" ? [X(t.m), K(t.m * t.inner[1].v)] : [t]));
+  const g = L.find((t) => t.t === "grp");
+  const b = g.inner[1].v;
+  return { L: open(L), R: open(R), move: `Open the parentheses: ${g.m} bags of (${sideText(g.inner)}) = ${xLabel(g.m)} and ${g.m} × ${b < 0 ? `(−${-b})` : b}` };
+}
+function moveTimesDiv(L, R) {
+  const d = L[0].d;
+  return { L: L[0].inner, R: [K(kSum(R) * d)], move: `Multiply both sides by ${d} (undoes the ÷ ${d})` };
+}
+function moveTimesFrac(L, R) {
+  const f = L.find((t) => t.t === "fx");
+  return { L: [X(f.p)], R: [K(kSum(R) * f.q)], move: `Multiply both sides by ${f.q}: ${f.q} groups of (${f.p}/${f.q})x make ${xLabel(f.p)}` };
+}
+
+/* Solve by always taking the next move that applies, recording each state. */
+function solve(L, R) {
+  const states = [{ L, R, move: null }];
+  for (let guard = 0; guard < 8; guard++) {
+    const cur = states[states.length - 1];
+    const all = [...cur.L, ...cur.R];
+    let next = null;
+    if (all.some((t) => t.t === "grp")) next = moveOpen(cur.L, cur.R);
+    else if (all.some((t) => t.t === "div")) next = moveTimesDiv(cur.L, cur.R);
+    else if (cur.L.some(isX) && cur.R.some(isX)) next = moveX(cur.L, cur.R);
+    else if ((cur.L.some(isX) ? cur.L : cur.R).some((t) => t.t === "k")) next = moveConst(cur.L, cur.R);
+    else if (all.some((t) => t.t === "fx")) next = moveTimesFrac(cur.L, cur.R);
+    else if (xCount(cur.L.some(isX) ? cur.L : cur.R) > 1) next = moveDivide(cur.L, cur.R);
+    if (!next) break;
+    states.push(next);
+  }
+  return states;
+}
+
+function answerOf(state) {
+  const other = state.L.some(isX) ? state.R : state.L;
+  const t = other[0];
+  return t.t === "fr" ? { value: t.num / t.den, text: `${t.num}/${t.den}` } : { value: t.v, text: `${t.v}` };
+}
+const fmt = (v) => {
+  if (Number.isInteger(v)) return `${v}`;
+  for (let den = 2; den <= 60; den++) {
+    const num = Math.round(v * den);
+    if (Math.abs(num / den - v) < 1e-9) return `${num}/${den}`;
+  }
+  return v.toFixed(2);
+};
+
+/* ---------- walkthrough widget ---------- */
+function walkthrough(host, L, R, extra = "") {
+  const states = solve(L, R);
+  let i = 0, preview = false;
+  const original = eqText(L, R);
+  function draw() {
+    const s = states[i];
+    const upcoming = preview ? states[i + 1] : null;
+    const history = states.slice(0, i + 1).map((st, j) =>
+      `${j ? `<div class="h-move">${st.move}</div>` : ""}<div class="h-eq">${eqText(st.L, st.R)}</div>`).join("");
+    let status = "";
+    if (i === states.length - 1) {
+      const ans = answerOf(s);
+      const shown = ans.value < 0 || ans.text.includes("/") ? `(${ans.text})` : ans.text;
+      const plugged = original.replace(/(\d|\))x/g, `$1 × ${shown}`).replace(/x/g, shown);
+      const left = evalSide(L, ans.value), right = evalSide(R, ans.value);
+      status = `<div class="status">
+        <p class="big good">x = ${ans.text}</p>
+        ${ans.text.includes("/") ? "<p>It doesn't split evenly, so the answer is a fraction. Type it in the app as " + ans.text + ".</p>" : ""}
+        <p><strong>Check:</strong> ${plugged}</p>
+        <p>Left side = ${fmt(left)}, right side = ${fmt(right)} <span class="good">✓ balanced</span></p>
+      </div>`;
+    }
+    host.innerHTML = `
+      ${extra}
+      <p class="eq">${eqText(s.L, s.R)}</p>
+      ${scaleHTML(s.L, s.R, 0, upcoming ? upcoming.take : 0)}
+      ${upcoming ? `<p class="pending">${upcoming.move}. The dashed ${xLabel(upcoming.take)} on <em>each</em> side come off together, so the scale stays level.</p>` : ""}
+      <div class="row">
+        <button class="primary" data-act="next" ${i === states.length - 1 ? "disabled" : ""}>${upcoming ? `Take them off ▶` : "Next move ▶"}</button>
+        <button data-act="back" ${i === 0 ? "disabled" : ""}>Back</button>
+      </div>
+      <div class="history">${history}</div>
+      ${status}`;
+  }
+  host.onclick = (e) => {
+    const act = e.target.closest("[data-act]")?.dataset.act;
+    // Taking x's off both sides happens in two taps: first mark the tiles, then remove them.
+    if (act === "next" && !preview && states[i + 1]?.take) preview = true;
+    else if (act === "next" && i < states.length - 1) { i++; preview = false; }
+    else if (act === "back" && preview) preview = false;
+    else if (act === "back" && i > 0) i--;
+    else return;
+    draw();
+  };
+  draw();
+}
+
+/* ---------- Step 1: guess and balance ---------- */
+let s1 = {};
+function s1New() {
+  let a, c, x, b, d;
+  do { a = rnd(1, 4); c = a + rnd(1, 3); x = rnd(3, 12); b = rnd(1, 15); d = (c - a) * x - b; } while (d <= 0);
+  s1 = { L: [X(a), K(b)], R: [X(c), K(-d)], x };
+  $("s1eq").textContent = eqText(s1.L, s1.R);
+  $("s1range").value = 2;
+  s1Draw();
+}
+function s1Draw() {
+  const g = +$("s1range").value;
+  const left = evalSide(s1.L, g), right = evalSide(s1.R, g);
+  const tilt = Math.max(-12, Math.min(12, (right - left) * 0.8));
+  $("s1out").textContent = g;
+  $("s1scale").innerHTML = scaleHTML(s1.L, s1.R, tilt);
+  const [a, b] = [s1.L[0].n, s1.L[1].v];
+  const [c, d] = [s1.R[0].n, -s1.R[1].v];
+  let verdict;
+  if (left === right) verdict = `<p class="big good">Level! x = ${g}</p>`;
+  else if (left > right) verdict = `<p class="big">Left is heavier. Try a ${g < s1.x ? "bigger" : "smaller"} x.</p>`;
+  else verdict = `<p class="big">Right is heavier. Try a ${g < s1.x ? "bigger" : "smaller"} x.</p>`;
+  $("s1status").innerHTML = `
+    <p>Left: ${a} × ${g} + ${b} = <strong>${left}</strong></p>
+    <p>Right: ${c} × ${g} − ${d} = <strong>${right}</strong></p>
+    ${verdict}`;
+}
+$("s1range").addEventListener("input", s1Draw);
+$("s1new").onclick = s1New;
+s1New();
+
+/* ---------- Step 2: the undo machine ---------- */
+let s2 = {};
+function s2New() {
+  if (Math.random() < 0.5) {
+    // ax + b = c: multiply first, then add
+    const x = rnd(2, 12), a = rnd(2, 9), b = nonzero(-12, 15);
+    s2Set(x, [["×", a], [b > 0 ? "+" : "−", Math.abs(b)]], eqText([X(a), K(b)], [K(a * x + b)]));
+  } else {
+    // (x + b) / a = c: add first, then divide
+    const a = rnd(2, 6), b = nonzero(-9, 12), c = rnd(2, 9);
+    s2Set(a * c - b, [[b > 0 ? "+" : "−", Math.abs(b)], ["÷", a]], eqText([D(a, [X(1), K(b)])], [K(c)]));
+  }
+}
+const apply = (v, [op, n]) => ({ "×": v * n, "÷": v / n, "+": v + n, "−": v - n })[op];
+const undo = { "×": "÷", "÷": "×", "+": "−", "−": "+" };
+function s2Set(x, ops, eq) {
+  const forward = [x];
+  ops.forEach((o) => forward.push(apply(forward[forward.length - 1], o)));
+  s2 = { x, ops, eq, forward, shown: 0 };
+  $("s2eq").textContent = eq;
+  s2Draw();
+}
+function s2Draw() {
+  const { ops, forward, shown } = s2;
+  const out = forward[forward.length - 1];
+  const fwd = [`<span class="val x">x</span>`];
+  ops.forEach((o, i) => fwd.push(`<span class="op">→ ${o[0]} ${o[1]} →</span>`,
+    i === ops.length - 1 ? `<span class="val ans">${out}</span>` : `<span class="val">?</span>`));
+  const back = [`<span class="val ans">${out}</span>`];
+  const rev = [...ops].reverse();
+  rev.forEach((o, i) => {
+    const val = forward[forward.length - 2 - i];
+    const visible = i < shown;
+    back.push(`<span class="op back">→ ${undo[o[0]]} ${o[1]} →</span>`,
+      `<span class="val${i === rev.length - 1 && visible ? " x" : ""}${visible ? "" : " hidden"}">${visible ? val : "?"}</span>`);
+  });
+  const done = shown === rev.length;
+  $("s2machine").innerHTML = `
+    <div class="chain"><span class="lbl">Forwards</span>${fwd.join("")}</div>
+    <div class="chain"><span class="lbl">Backwards</span>${back.join("")}</div>
+    <div class="status">${done
+      ? `<p class="big good">x = ${s2.x}</p><p>The last thing done to x (${ops[ops.length - 1].join(" ")}) was the first thing undone.</p>`
+      : shown === 0
+        ? `<p>Start from the answer, ${out}. What was the <em>last</em> thing done to x? Undo that first.</p>`
+        : `<p>Now undo the step before it.</p>`}</div>`;
+  $("s2next").disabled = done;
+}
+$("s2next").onclick = () => { s2.shown++; s2Draw(); };
+$("s2new").onclick = s2New;
+s2New();
+
+/* ---------- Step 3: multi_alg, ax + b = cx − d ---------- */
+function s3New() {
+  let a, c, x, b, d;
+  do { a = rnd(1, 5); c = a + rnd(1, 4); x = rnd(1, 12); b = rnd(1, 20); d = (c - a) * x - b; } while (d <= 0);
+  walkthrough($("s3walk"), [X(a), K(b)], [X(c), K(-d)]);
+}
+$("s3new").onclick = s3New;
+s3New();
+
+/* ---------- Step 4: hard_alg kinds ---------- */
+const KINDS = {
+  paren: {
+    label: "a(x + b) = cx + d",
+    say: "Parentheses mean <em>a</em> identical bags. Open them first: count the x's and the numbers in all the bags.",
+    make() {
+      let a, b, c, x, d;
+      do { a = rnd(2, 4); b = nonzero(-6, 6); c = pick([1, 2, 3, 4, 5].filter((n) => n !== a)); x = rnd(-3, 9); d = a * (x + b) - c * x; } while (d === 0);
+      return [[G(a, [X(1), K(b)])], [X(c), K(d)]];
+    },
+  },
+  divide: {
+    label: "(x + b) / a = c",
+    say: "The whole bag is shared into <em>a</em> parts. Undo the sharing first: multiply both sides by <em>a</em>.",
+    make() {
+      const a = rnd(2, 6), c = rnd(-4, 9), b = nonzero(-9, 9);
+      return [[D(a, [X(1), K(b)])], [K(c)]];
+    },
+  },
+  fracx: {
+    label: "(p/q)x + b = c",
+    say: "A fraction of x. Clear the number first, then multiply by the bottom number to get whole x tiles, then split.",
+    make() {
+      const q = rnd(2, 5);
+      const p = pick([1, 2, 3, 4, 5, 6, 7].filter((n) => gcd(n, q) === 1));
+      const x = q * rnd(-2, 5) || q, b = nonzero(-10, 10);
+      return [[FX(p, q), K(b)], [K((p * x) / q + b)]];
+    },
+  },
+  fracans: {
+    label: "answer is a fraction",
+    say: "Same moves as always. The last split doesn't come out even, so the answer is a fraction.",
+    make() {
+      const a = rnd(2, 6);
+      let num;
+      do { num = rnd(-12, 15); } while (num % a === 0);
+      const b = nonzero(-10, 10);
+      return [[X(a), K(b)], [K(num + b)]];
+    },
+  },
+};
+let kind = "paren";
+Object.entries(KINDS).forEach(([k, cfg]) => {
+  const b = document.createElement("button");
+  b.textContent = cfg.label;
+  b.dataset.kind = k;
+  b.onclick = () => { kind = k; s4New(); };
+  $("s4kinds").appendChild(b);
+});
+function s4New() {
+  $("s4kinds").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.kind === kind));
+  const [L, R] = KINDS[kind].make();
+  walkthrough($("s4walk"), L, R, `<p class="say">${KINDS[kind].say}</p>`);
+}
+$("s4new").onclick = s4New;
+s4New();
+</script>
+<script>
+// Show every fraction like 5/6 as a stacked fraction, including ones the page writes later.
+(() => {
+  const FRAC = /(\d+)\/(\d+)/g;
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION"]);
+  function stack(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || SKIP.has(parent.tagName) || parent.closest("svg, .frac")) return NodeFilter.FILTER_REJECT;
+        FRAC.lastIndex = 0;
+        return FRAC.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+      },
+    });
+    const found = [];
+    while (walker.nextNode()) found.push(walker.currentNode);
+    for (const node of found) {
+      const text = node.nodeValue, pieces = document.createDocumentFragment();
+      let last = 0;
+      for (const m of text.matchAll(FRAC)) {
+        pieces.append(text.slice(last, m.index));
+        const frac = document.createElement("span");
+        frac.className = "frac";
+        frac.innerHTML = `<span>${m[1]}</span><span>${m[2]}</span>`;
+        pieces.append(frac);
+        last = m.index + m[0].length;
+      }
+      pieces.append(text.slice(last));
+      node.replaceWith(pieces);
+    }
+  }
+  const wrap = document.querySelector(".wrap");
+  stack(wrap);
+  // Our own changes trigger the observer once more, find nothing left to stack, and stop.
+  new MutationObserver(() => stack(wrap)).observe(wrap, { childList: true, subtree: true, characterData: true });
+})();
+</script>
+</body>
+</html>

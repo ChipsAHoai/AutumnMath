@@ -47,7 +47,9 @@ def times(quiz):
     lower, upper = quiz.multiplication_range
     table = getattr(quiz, "times_table", None)
     if table:
-        # Practice one table, with it on either side so both orders get learned.
+        # Practice one table (or one of a list, like [3, 4]), on either side so both orders get learned.
+        if isinstance(table, (list, tuple)):
+            table = random.choice(table)
         x, y = table, random.randint(lower, upper)
         if random.random() < 0.5:
             x, y = y, x
